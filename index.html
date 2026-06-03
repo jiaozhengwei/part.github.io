@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover, maximum-scale=1.0, minimum-scale=1.0">
-    <title>配件盘点工具 · 终极高清扫描</title>
+    <title>配件盘点工具 · 终极高清连续扫描</title>
+    <!-- 依赖库 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <style>
@@ -13,7 +14,7 @@
             --danger: #d93025;
             --warning: #e6a817;
             --bg: #f5f6f8;
-            --card: #ffffff;
+            --card: #fff;
             --text: #202124;
             --border: #e0e0e0;
             --shadow: 0 2px 8px rgba(0,0,0,0.08);
@@ -27,7 +28,7 @@
             min-height: 100vh; min-height: -webkit-fill-available;
             padding-bottom: calc(80px + var(--safe-bottom));
             -webkit-tap-highlight-color: transparent;
-            line-height: 1.5; user-select: none; overflow-x: hidden;
+            line-height: 1.5; user-select: none;
         }
         .app-header {
             background: var(--card); padding: 12px 16px; position: sticky; top:0; z-index:100;
@@ -89,10 +90,15 @@
             border:none; color:#fff; font-size:22px; cursor:pointer;
         }
         #scanner-video { width:100%; height:100%; object-fit:cover; display:block; }
+        .scanner-info {
+            position:absolute; top:16px; left:16px; z-index:10002;
+            background:rgba(0,0,0,0.6); color:#fff; font-size:12px;
+            padding:6px 12px; border-radius:8px; display:flex; align-items:center; gap:8px;
+        }
         .scanner-hint {
-            position:absolute; bottom:80px; left:50%; transform:translateX(-50%);
+            position:absolute; bottom:100px; left:50%; transform:translateX(-50%);
             background:rgba(0,0,0,0.7); color:#fff; font-size:13px; padding:10px 20px;
-            border-radius:20px; z-index:10001; pointer-events:none; white-space: nowrap;
+            border-radius:20px; z-index:10001; pointer-events:none;
         }
         .scanner-overlay-frame {
             position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
@@ -101,14 +107,20 @@
             box-shadow:0 0 0 2000px rgba(0,0,0,0.6);
         }
         .scanner-controls {
-            position:absolute; bottom:150px; left:50%; transform:translateX(-50%);
-            display:flex; gap:15px; z-index:10002;
+            position:absolute; bottom:180px; left:50%; transform:translateX(-50%);
+            display:flex; gap:12px; z-index:10002; flex-wrap:wrap; justify-content:center;
         }
-        .flash-btn {
-            width:44px; height:44px; border-radius:50%; background:rgba(255,255,255,0.2);
+        .flash-btn, .focus-btn {
+            width:44px; height:44px; border-radius:50%; background:rgba(255,255,255,0.25);
             border:none; color:#fff; font-size:22px; cursor:pointer; display:none;
             align-items:center; justify-content:center;
         }
+        .focus-slider-container {
+            display:none; align-items:center; gap:8px;
+            background:rgba(0,0,0,0.5); padding:6px 12px; border-radius:20px;
+        }
+        .focus-slider-container input[type=range] { width:100px; }
+        .focus-slider-label { color:#fff; font-size:11px; white-space:nowrap; }
         .result-toast {
             position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:10003;
             padding:14px 24px; border-radius:25px; font-weight:600; font-size:13px;
@@ -171,7 +183,7 @@
     <div class="card">
         <div class="card-header"><span class="card-title">📷 二维码扫描</span></div>
         <div class="scan-fab-container">
-            <button class="scan-fab video-scan" id="btnScanFab" title="连续扫描（终极高清）">📹</button>
+            <button class="scan-fab video-scan" id="btnScanFab" title="连续扫描（高清对焦）">📹</button>
             <button class="scan-fab photo-scan" id="btnPhotoScan" title="拍照扫描">📸</button>
         </div>
         <div style="text-align:center; font-size:12px; color:#666; margin:6px 0;" id="scanFabLabel">📹 连续 | 📸 拍照</div>
@@ -182,7 +194,6 @@
                 <button class="btn btn-outline btn-sm" id="btnManualSubmit">确认</button>
             </div>
         </div>
-        <div style="margin-top:8px; font-size:11px; color:#999;">💡 点击画面可强制对焦 | 光线暗可开启闪光灯</div>
     </div>
 
     <div class="card">
@@ -199,11 +210,19 @@
 <div class="scanner-modal" id="scannerModal">
     <button class="scanner-close" id="btnScannerClose">✕</button>
     <video id="scanner-video" autoplay playsinline muted></video>
+    <div class="scanner-info" id="scannerInfo">
+        <span id="resolutionLabel">--</span>
+    </div>
     <div class="scanner-overlay-frame"></div>
     <div class="scanner-hint" id="scannerHint">将二维码对准框内</div>
     <div id="focusTapArea" style="position:absolute; top:0; left:0; width:100%; height:100%; z-index:10001; background:transparent;"></div>
     <div class="scanner-controls">
         <button class="flash-btn" id="btnFlashToggle" title="闪光灯">🔦</button>
+        <button class="focus-btn" id="btnAutoFocus" title="自动对焦">🎯</button>
+        <div class="focus-slider-container" id="focusSliderContainer">
+            <span class="focus-slider-label">焦距</span>
+            <input type="range" id="focusSlider" min="0" max="20" step="0.1" value="10">
+        </div>
     </div>
 </div>
 
@@ -252,7 +271,9 @@
             btnResetAll:$('btnResetAll'), importFileInput:$('importFileInput'),
             focusTapArea:$('focusTapArea'), photoInput:$('photoInput'),
             btnCloudInfo:$('btnCloudInfo'), btnRefreshStats:$('btnRefreshStats'),
-            btnFlashToggle:$('btnFlashToggle')
+            btnFlashToggle:$('btnFlashToggle'), btnAutoFocus:$('btnAutoFocus'),
+            focusSliderContainer:$('focusSliderContainer'), focusSlider:$('focusSlider'),
+            resolutionLabel:$('resolutionLabel')
         };
 
         // Toast
@@ -265,7 +286,7 @@
         };
 
         // 存储
-        const STORAGE_KEY = 'parts_ultimate_v2';
+        const STORAGE_KEY = 'parts_ultimate_final';
         const saveLocal = ()=>{
             try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({
                 tableData:STATE.tableData, headers:STATE.headers, fileName:STATE.fileName,
@@ -363,83 +384,69 @@
         };
         const refreshAllUI = ()=>{ updateStats(); renderTable(); renderLog(); updateUploadUI(); };
 
-        // ========== 终极扫描引擎 ==========
-        const CROP_SIZE = 360; // 取景框对应裁剪区域（高像素）
-        const SCAN_INTERVAL = 180;
-
-        // BarcodeDetector 支持检查
+        // ========== 终极扫描核心 ==========
         let barcodeDetector = null;
         if (typeof BarcodeDetector !== 'undefined') {
             try { barcodeDetector = new BarcodeDetector({ formats: ['qr_code'] }); } catch(e) {}
         }
 
-        // 自适应二值化（Otsu算法）
-        function otsuThreshold(grayscale) {
-            const histogram = new Array(256).fill(0);
-            for (let i = 0; i < grayscale.length; i++) histogram[grayscale[i]]++;
-            let total = grayscale.length;
-            let sum = 0;
-            for (let i = 0; i < 256; i++) sum += i * histogram[i];
-            let sumB = 0, wB = 0, wF = 0, maxVariance = 0, threshold = 0;
-            for (let i = 0; i < 256; i++) {
-                wB += histogram[i];
-                if (wB === 0) continue;
-                wF = total - wB;
-                if (wF === 0) break;
-                sumB += i * histogram[i];
-                const mB = sumB / wB;
-                const mF = (sum - sumB) / wF;
-                const variance = wB * wF * (mB - mF) * (mB - mF);
-                if (variance > maxVariance) { maxVariance = variance; threshold = i; }
+        const CROP_SIZE = 360;
+
+        // Otsu 二值化
+        function otsuThreshold(gray) {
+            const hist = new Array(256).fill(0);
+            gray.forEach(v => hist[v]++);
+            let total = gray.length, sum = 0;
+            for (let i=0; i<256; i++) sum += i * hist[i];
+            let sumB = 0, wB = 0, wF = 0, maxVar = 0, th = 0;
+            for (let i=0; i<256; i++) {
+                wB += hist[i]; if (wB === 0) continue;
+                wF = total - wB; if (wF === 0) break;
+                sumB += i * hist[i];
+                const mB = sumB / wB, mF = (sum - sumB) / wF;
+                const v = wB * wF * (mB - mF) * (mB - mF);
+                if (v > maxVar) { maxVar = v; th = i; }
             }
-            return threshold;
+            return th;
         }
 
         function applyAdaptiveThreshold(imageData) {
             const { data, width, height } = imageData;
-            // 转换为灰度
             const gray = new Uint8Array(width * height);
-            for (let i = 0; i < data.length; i += 4) {
-                gray[i / 4] = Math.round(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
-            }
+            for (let i=0; i<data.length; i+=4) gray[i/4] = Math.round(0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2]);
             const thr = otsuThreshold(gray);
-            // 二值化输出
-            const output = new Uint8ClampedArray(data.length);
-            for (let i = 0; i < gray.length; i++) {
+            const out = new Uint8ClampedArray(data.length);
+            for (let i=0; i<gray.length; i++) {
                 const val = gray[i] > thr ? 255 : 0;
-                const idx = i * 4;
-                output[idx] = val; output[idx + 1] = val; output[idx + 2] = val; output[idx + 3] = 255;
+                const idx = i*4;
+                out[idx]=out[idx+1]=out[idx+2]=val; out[idx+3]=255;
             }
-            return new ImageData(output, width, height);
+            return new ImageData(out, width, height);
         }
 
-        // 锐化核（更强）
-        function sharpenImageData(imageData) {
-            const { data, width, height } = imageData;
-            const output = new Uint8ClampedArray(data.length);
-            const kernel = [-1, -1, -1, -1, 9, -1, -1, -1, -1]; // 强锐化
-            for (let y = 1; y < height - 1; y++) {
-                for (let x = 1; x < width - 1; x++) {
-                    let r = 0, g = 0, b = 0;
-                    for (let ky = -1; ky <= 1; ky++) {
-                        for (let kx = -1; kx <= 1; kx++) {
-                            const idx = ((y + ky) * width + (x + kx)) * 4;
-                            const kVal = kernel[(ky + 1) * 3 + (kx + 1)];
-                            r += data[idx] * kVal; g += data[idx + 1] * kVal; b += data[idx + 2] * kVal;
-                        }
-                    }
-                    const outIdx = (y * width + x) * 4;
-                    output[outIdx] = Math.min(255, Math.max(0, r));
-                    output[outIdx + 1] = Math.min(255, Math.max(0, g));
-                    output[outIdx + 2] = Math.min(255, Math.max(0, b));
-                    output[outIdx + 3] = 255;
+        // 对比度拉伸
+        function contrastStretch(imageData) {
+            const { data } = imageData;
+            let min = 255, max = 0;
+            for (let i=0; i<data.length; i+=4) {
+                const v = (data[i] + data[i+1] + data[i+2]) / 3;
+                if (v < min) min = v;
+                if (v > max) max = v;
+            }
+            if (max === min) return imageData;
+            const out = new Uint8ClampedArray(data.length);
+            for (let i=0; i<data.length; i+=4) {
+                for (let j=0; j<3; j++) {
+                    out[i+j] = Math.min(255, Math.max(0, (data[i+j] - min) * 255 / (max - min)));
                 }
+                out[i+3] = 255;
             }
-            return new ImageData(output, width, height);
+            return new ImageData(out, imageData.width, imageData.height);
         }
 
+        // 解码
         async function decodeFrame(video) {
-            if (video.readyState < video.HAVE_CURRENT_DATA || video.videoWidth === 0) return null;
+            if (video.readyState < 2 || video.videoWidth === 0) return null;
             const vw = video.videoWidth, vh = video.videoHeight;
             const crop = Math.min(CROP_SIZE, vw, vh);
             const sx = (vw - crop) / 2, sy = (vh - crop) / 2;
@@ -449,82 +456,116 @@
             const ctx = canvas.getContext('2d', { willReadFrequently: true });
             ctx.drawImage(video, sx, sy, crop, crop, 0, 0, crop, crop);
 
-            // 策略1：原生 BarcodeDetector（最快）
+            // 策略1: BarcodeDetector
             if (barcodeDetector) {
                 try {
                     const codes = await barcodeDetector.detect(canvas);
                     if (codes.length > 0) return codes[0].rawValue;
-                } catch (e) {}
+                } catch(e) {}
             }
 
-            // 策略2：锐化 + jsQR
+            // 策略2: 对比度拉伸 + jsQR
             const imageData = ctx.getImageData(0, 0, crop, crop);
-            const sharp = sharpenImageData(imageData);
-            let code = jsQR(sharp.data, crop, crop);
+            const stretched = contrastStretch(imageData);
+            let code = jsQR(stretched.data, crop, crop);
             if (code) return code.data;
 
-            // 策略3：自适应二值化 + jsQR（对模糊/低对比度最有效）
-            const binary = applyAdaptiveThreshold(imageData);
+            // 策略3: 自适应二值化
+            const binary = applyAdaptiveThreshold(stretched);
             code = jsQR(binary.data, crop, crop);
             if (code) return code.data;
 
-            // 策略4：二值化后再锐化
-            const binarySharp = sharpenImageData(binary);
-            code = jsQR(binarySharp.data, crop, crop);
+            // 策略4: 二值化前锐化
+            const sharp = sharpenImageData(imageData);
+            code = jsQR(sharp.data, crop, crop);
             return code ? code.data : null;
         }
 
+        function sharpenImageData(imageData) {
+            const { data, width, height } = imageData;
+            const kernel = [0, -1, 0, -1, 5, -1, 0, -1, 0];
+            const out = new Uint8ClampedArray(data.length);
+            for (let y=1; y<height-1; y++) {
+                for (let x=1; x<width-1; x++) {
+                    let r=0,g=0,b=0;
+                    for (let ky=-1; ky<=1; ky++) {
+                        for (let kx=-1; kx<=1; kx++) {
+                            const idx = ((y+ky)*width + (x+kx)) * 4;
+                            const k = kernel[(ky+1)*3 + (kx+1)];
+                            r += data[idx]*k; g += data[idx+1]*k; b += data[idx+2]*k;
+                        }
+                    }
+                    const idx = (y*width + x) * 4;
+                    out[idx]=Math.min(255,Math.max(0,r)); out[idx+1]=Math.min(255,Math.max(0,g)); out[idx+2]=Math.min(255,Math.max(0,b)); out[idx+3]=255;
+                }
+            }
+            return new ImageData(out, width, height);
+        }
+
         let lastDecodeTime = 0;
-        async function scanLoop(now) {
+        const SCAN_INTERVAL = 200;
+        function scanLoop(now) {
             if (!STATE.isScanning) return;
             if (now - lastDecodeTime >= SCAN_INTERVAL) {
                 lastDecodeTime = now;
-                try {
-                    const result = await decodeFrame(dom.scannerVideo);
+                decodeFrame(dom.scannerVideo).then(result => {
                     if (result) processScan(result.trim());
-                } catch (e) {}
+                }).catch(()=>{});
             }
             STATE.scanInterval = requestAnimationFrame(scanLoop);
         }
 
-        // 摄像头启动
+        // 摄像头启动（带分辨率自适应）
         async function startVideoScanner() {
-            if (!STATE.tableData.length) { toast('⚠️ 请先上传表格', 'error'); return; }
+            if (!STATE.tableData.length) { toast('⚠️ 请先上传表格','error'); return; }
             if (STATE.isScanning) return;
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    video: {
-                        facingMode: 'environment',
-                        width: { ideal: 1920, min: 1280 },
-                        height: { ideal: 1080, min: 720 },
-                        frameRate: { ideal: 30 }
-                    },
-                    audio: false
-                });
-                STATE.mediaStream = stream;
-                STATE.videoTrack = stream.getVideoTracks()[0];
-                dom.scannerVideo.srcObject = stream;
-                dom.scannerModal.classList.add('active');
-                dom.btnScanFab.classList.add('scanning');
-                dom.scanFabLabel.textContent = '📹 超清扫描中...';
-                STATE.isScanning = true;
-                STATE.currentScanResult = null;
 
-                if (STATE.videoTrack) {
-                    applyFocus(STATE.videoTrack);
-                    initFlashButton(STATE.videoTrack);
-                }
-                startBrightnessMonitor();
+            const constraints = [
+                { video: { facingMode:'environment', width:{ideal:3840}, height:{ideal:2160}, frameRate:{ideal:30} } },
+                { video: { facingMode:'environment', width:{ideal:1920}, height:{ideal:1080}, frameRate:{ideal:30} } },
+                { video: { facingMode:'environment', width:{ideal:1280}, height:{ideal:720}, frameRate:{ideal:30} } }
+            ];
 
-                lastDecodeTime = 0;
-                STATE.scanInterval = requestAnimationFrame(scanLoop);
-            } catch (err) {
-                STATE.isScanning = false;
-                dom.scannerModal.classList.remove('active');
-                dom.btnScanFab.classList.remove('scanning');
-                dom.scanFabLabel.textContent = '📹 连续 | 📸 拍照';
-                toast('❌ 摄像头启动失败', 'error');
+            let stream = null;
+            for (let c of constraints) {
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia({...c, audio:false});
+                    break;
+                } catch(e) {}
             }
+            if (!stream) {
+                toast('❌ 无法访问摄像头','error'); return;
+            }
+
+            STATE.mediaStream = stream;
+            STATE.videoTrack = stream.getVideoTracks()[0];
+            dom.scannerVideo.srcObject = stream;
+            await dom.scannerVideo.play();
+
+            // 显示实际分辨率
+            const updateRes = () => {
+                const w = dom.scannerVideo.videoWidth, h = dom.scannerVideo.videoHeight;
+                dom.resolutionLabel.textContent = w && h ? `${w}x${h}` : '...';
+            };
+            dom.scannerVideo.addEventListener('loadedmetadata', updateRes);
+            dom.scannerVideo.addEventListener('resize', updateRes);
+            setTimeout(updateRes, 1000);
+
+            dom.scannerModal.classList.add('active');
+            dom.btnScanFab.classList.add('scanning');
+            dom.scanFabLabel.textContent = '📹 超清扫描中...';
+            STATE.isScanning = true;
+            STATE.currentScanResult = null;
+
+            if (STATE.videoTrack) {
+                applyFocus(STATE.videoTrack);
+                initFlashButton(STATE.videoTrack);
+                initManualFocus(STATE.videoTrack);
+            }
+            startBrightnessMonitor();
+
+            lastDecodeTime = 0;
+            STATE.scanInterval = requestAnimationFrame(scanLoop);
         }
 
         function applyFocus(track) {
@@ -545,6 +586,26 @@
             }
         }
 
+        function initManualFocus(track) {
+            const cap = track.getCapabilities ? track.getCapabilities() : {};
+            if (cap.focusMode && cap.focusMode.includes('manual')) {
+                dom.focusSliderContainer.style.display = 'flex';
+                dom.focusSlider.oninput = () => {
+                    const val = parseFloat(dom.focusSlider.value);
+                    track.applyConstraints({ advanced: [{ focusMode:'manual', focusDistance: val }] }).catch(() => {});
+                };
+            } else {
+                dom.focusSliderContainer.style.display = 'none';
+            }
+            dom.btnAutoFocus.style.display = 'flex';
+            dom.btnAutoFocus.onclick = () => {
+                track.applyConstraints({ advanced: [{ focusMode:'auto' }] })
+                    .then(() => setTimeout(() => applyFocus(track), 800))
+                    .catch(() => {});
+                toast('🎯 自动对焦中…','info');
+            };
+        }
+
         function startBrightnessMonitor() {
             if (STATE.brightnessTimer) clearInterval(STATE.brightnessTimer);
             STATE.brightnessTimer = setInterval(() => {
@@ -555,9 +616,9 @@
                 const ctx = c.getContext('2d'); ctx.drawImage(video, 0, 0, 32, 32);
                 const d = ctx.getImageData(0, 0, 32, 32).data;
                 let sum = 0;
-                for (let i = 0; i < d.length; i += 4) sum += (d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114);
-                const avg = sum / (d.length / 4);
-                dom.scannerHint.textContent = avg < 80 ? '光线暗，请开启闪光灯 💡' : '对准框内，自动识别';
+                for (let i=0; i<d.length; i+=4) sum += (d[i]*0.299 + d[i+1]*0.587 + d[i+2]*0.114);
+                const avg = sum / (d.length/4);
+                dom.scannerHint.textContent = avg < 80 ? '光线暗，请开闪光灯' : '对准框内自动识别';
             }, 1500);
         }
 
@@ -573,130 +634,110 @@
             STATE.currentScanResult = null;
             if (STATE.brightnessTimer) { clearInterval(STATE.brightnessTimer); STATE.brightnessTimer = null; }
             dom.btnFlashToggle.style.display = 'none';
-        }
-
-        function manualFocusTrigger() {
-            if (!STATE.isScanning || !STATE.videoTrack) return;
-            STATE.videoTrack.applyConstraints({ advanced: [{ focusMode: 'auto' }] })
-                .then(() => setTimeout(() => applyFocus(STATE.videoTrack), 600))
-                .catch(() => {});
-            toast('📸 对焦中…', 'info');
+            dom.btnAutoFocus.style.display = 'none';
+            dom.focusSliderContainer.style.display = 'none';
         }
 
         // 拍照扫描（备用）
         async function photoScanFromFile(file) {
             try {
                 const img = new Image(); img.src = URL.createObjectURL(file);
-                await new Promise((r, rj) => { img.onload = r; img.onerror = rj; });
-                const maxDim = 1280; let w = img.width, h = img.height;
-                if (w > maxDim || h > maxDim) { const ratio = Math.min(maxDim / w, maxDim / h); w = Math.round(w * ratio); h = Math.round(h * ratio); }
-                const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
-                const ctx = canvas.getContext('2d', { willReadFrequently: true });
-                ctx.drawImage(img, 0, 0, w, h); URL.revokeObjectURL(img.src);
-
-                // 尝试 BarcodeDetector
-                if (barcodeDetector) {
-                    try {
-                        const codes = await barcodeDetector.detect(canvas);
-                        if (codes.length > 0) { processScan(codes[0].rawValue.trim()); toast('📸 识别成功', 'success'); playOk(); dom.photoInput.value = ''; return; }
-                    } catch (e) {}
-                }
-                // jsQR 策略
-                const imageData = ctx.getImageData(0, 0, w, h);
-                let code = jsQR(imageData.data, w, h);
-                if (!code) {
-                    const binary = applyAdaptiveThreshold(imageData);
-                    code = jsQR(binary.data, w, h);
-                }
-                if (code) {
-                    processScan(code.data.trim()); toast('📸 识别成功', 'success'); playOk();
-                } else {
-                    toast('❌ 未识别到二维码', 'error'); playErr();
-                }
-            } catch (e) { toast('❌ 图片处理失败', 'error'); }
-            dom.photoInput.value = '';
+                await new Promise((r,rj)=>{ img.onload=r; img.onerror=rj; });
+                const maxDim=1280; let w=img.width, h=img.height;
+                if(w>maxDim||h>maxDim){ const r=Math.min(maxDim/w,maxDim/h); w=Math.round(w*r); h=Math.round(h*r); }
+                const canvas=document.createElement('canvas'); canvas.width=w; canvas.height=h;
+                const ctx=canvas.getContext('2d',{willReadFrequently:true}); ctx.drawImage(img,0,0,w,h); URL.revokeObjectURL(img.src);
+                if(barcodeDetector){ try{ const codes=await barcodeDetector.detect(canvas); if(codes.length>0){ processScan(codes[0].rawValue.trim()); toast('📸 成功','success'); playOk(); dom.photoInput.value=''; return; } }catch(e){} }
+                const imageData=ctx.getImageData(0,0,w,h);
+                let code=jsQR(imageData.data,w,h);
+                if(!code){ const bin=applyAdaptiveThreshold(imageData); code=jsQR(bin.data,w,h); }
+                if(code){ processScan(code.data.trim()); toast('📸 成功','success'); playOk(); }
+                else{ toast('❌ 未识别','error'); playErr(); }
+            } catch(e) { toast('❌ 图片处理失败','error'); }
+            dom.photoInput.value='';
         }
 
         // 导入导出
         const exportData = () => {
-            if (!STATE.tableData.length) { toast('无数据', 'error'); return; }
+            if(!STATE.tableData.length){ toast('无数据','error'); return; }
             recalcPassed(); saveLocal();
             const blob = new Blob([JSON.stringify({
-                tableData: STATE.tableData, headers: STATE.headers, fileName: STATE.fileName,
-                totalRows: STATE.totalRows, passedCount: STATE.passedCount, scanLog: STATE.scanLog,
-                exportedAt: new Date().toISOString()
-            }, null, 2)], { type: 'application/json' });
-            const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-            a.download = `盘点_${new Date().toISOString().slice(0,10)}.json`; a.click(); toast('💾 导出成功', 'success');
+                tableData:STATE.tableData, headers:STATE.headers, fileName:STATE.fileName,
+                totalRows:STATE.totalRows, passedCount:STATE.passedCount, scanLog:STATE.scanLog,
+                exportedAt:new Date().toISOString()
+            },null,2)],{type:'application/json'});
+            const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+            a.download=`盘点_${new Date().toISOString().slice(0,10)}.json`; a.click(); toast('💾 导出成功','success');
         };
         const importData = file => {
-            const reader = new FileReader();
-            reader.onload = e => {
-                try {
-                    const d = JSON.parse(e.target.result);
-                    if (!d.tableData) throw new Error('格式错误');
-                    if (!confirm(`导入 ${d.totalRows} 行，覆盖当前数据？`)) return;
-                    STATE.tableData = d.tableData; STATE.headers = d.headers || []; STATE.fileName = d.fileName || '导入';
-                    STATE.totalRows = d.totalRows; STATE.passedCount = d.passedCount || 0; STATE.scanLog = d.scanLog || [];
-                    recalcPassed(); saveLocal(); refreshAllUI(); toast('✅ 导入成功', 'success');
-                } catch (err) { toast('❌ 导入失败', 'error'); }
-            };
-            reader.readAsText(file);
+            const reader=new FileReader();
+            reader.onload=e=>{
+                try{
+                    const d=JSON.parse(e.target.result); if(!d.tableData) throw new Error('格式错误');
+                    if(!confirm(`导入 ${d.totalRows} 行，覆盖？`)) return;
+                    STATE.tableData=d.tableData; STATE.headers=d.headers||[]; STATE.fileName=d.fileName||'导入';
+                    STATE.totalRows=d.totalRows; STATE.passedCount=d.passedCount||0; STATE.scanLog=d.scanLog||[];
+                    recalcPassed(); saveLocal(); refreshAllUI(); toast('✅ 导入成功','success');
+                }catch(err){ toast('❌ 导入失败','error'); }
+            }; reader.readAsText(file);
         };
         const resetAll = () => {
-            if (!confirm('重置全部数据？')) return;
-            STATE.tableData = []; STATE.headers = []; STATE.fileName = ''; STATE.totalRows = 0; STATE.passedCount = 0; STATE.scanLog = [];
+            if(!confirm('重置全部？')) return;
+            STATE.tableData=[]; STATE.headers=[]; STATE.fileName=''; STATE.totalRows=0; STATE.passedCount=0; STATE.scanLog=[];
             localStorage.removeItem(STORAGE_KEY); refreshAllUI();
-            dom.tableContainer.innerHTML = '<div style="padding:30px;text-align:center;color:#999;">暂无数据</div>';
-            dom.logList.innerHTML = '<li style="color:#999;">暂无记录</li>';
+            dom.tableContainer.innerHTML='<div style="padding:30px;text-align:center;color:#999;">暂无数据</div>';
+            dom.logList.innerHTML='<li style="color:#999;">暂无记录</li>';
             dom.uploadZone.classList.remove('has-file');
         };
 
         // 事件绑定
         const bindEvents = () => {
-            dom.fileInput.addEventListener('change', async e => {
-                const file = e.target.files[0]; if (!file) return;
-                if (STATE.tableData.length && !confirm('已有数据，覆盖？')) { dom.fileInput.value = ''; return; }
-                try {
-                    const { headers, rows, fileName } = await parseExcel(file);
-                    STATE.headers = headers; STATE.tableData = rows; STATE.fileName = fileName;
-                    STATE.totalRows = rows.length; STATE.passedCount = 0; STATE.scanLog = [];
-                    recalcPassed(); saveLocal(); refreshAllUI(); toast('✅ 加载 ' + rows.length + ' 行', 'success');
-                } catch (err) { toast('❌ ' + err.message, 'error'); }
-                dom.fileInput.value = '';
+            dom.fileInput.addEventListener('change',async e=>{
+                const f=e.target.files[0]; if(!f) return;
+                if(STATE.tableData.length&&!confirm('已有数据，覆盖？')){dom.fileInput.value='';return;}
+                try{
+                    const {headers,rows,fileName}=await parseExcel(f);
+                    STATE.headers=headers; STATE.tableData=rows; STATE.fileName=fileName;
+                    STATE.totalRows=rows.length; STATE.passedCount=0; STATE.scanLog=[];
+                    recalcPassed(); saveLocal(); refreshAllUI(); toast('✅ 加载 '+rows.length+' 行','success');
+                }catch(err){ toast('❌ '+err.message,'error'); }
+                dom.fileInput.value='';
             });
-            dom.btnRemoveFile.addEventListener('click', () => {
-                if (STATE.passedCount && !confirm('确定移除？')) return;
-                STATE.tableData = []; STATE.headers = []; STATE.fileName = ''; STATE.totalRows = 0; STATE.passedCount = 0; STATE.scanLog = [];
+            dom.btnRemoveFile.addEventListener('click',()=>{
+                if(STATE.passedCount&&!confirm('确定移除？')) return;
+                STATE.tableData=[]; STATE.headers=[]; STATE.fileName=''; STATE.totalRows=0; STATE.passedCount=0; STATE.scanLog=[];
                 localStorage.removeItem(STORAGE_KEY); refreshAllUI();
             });
-            dom.btnPhotoScan.addEventListener('click', () => {
-                if (!STATE.tableData.length) { toast('⚠️ 请先上传表格', 'error'); return; }
+            dom.btnPhotoScan.addEventListener('click',()=>{
+                if(!STATE.tableData.length){ toast('⚠️ 请先上传表格','error'); return; }
                 dom.photoInput.click();
             });
-            dom.photoInput.addEventListener('change', e => { if (e.target.files[0]) photoScanFromFile(e.target.files[0]); });
-            dom.btnScanFab.addEventListener('click', () => { if (STATE.isScanning) stopVideoScanner(); else startVideoScanner(); });
-            dom.btnScannerClose.addEventListener('click', stopVideoScanner);
-            dom.focusTapArea.addEventListener('click', manualFocusTrigger);
-            dom.btnManualSubmit.addEventListener('click', () => {
-                const val = dom.manualQRInput.value.trim(); if (!val) return;
-                STATE.currentScanResult = null; processScan(val); dom.manualQRInput.value = '';
+            dom.photoInput.addEventListener('change',e=>{ if(e.target.files[0]) photoScanFromFile(e.target.files[0]); });
+            dom.btnScanFab.addEventListener('click',()=>{ if(STATE.isScanning) stopVideoScanner(); else startVideoScanner(); });
+            dom.btnScannerClose.addEventListener('click',stopVideoScanner);
+            dom.focusTapArea.addEventListener('click',()=>{
+                if(!STATE.isScanning||!STATE.videoTrack) return;
+                STATE.videoTrack.applyConstraints({advanced:[{focusMode:'auto'}]}).catch(()=>{});
+                toast('📸 对焦中…','info');
             });
-            dom.btnExport.addEventListener('click', exportData);
-            dom.btnImport.addEventListener('click', () => dom.importFileInput.click());
-            dom.importFileInput.addEventListener('change', e => { if (e.target.files[0]) importData(e.target.files[0]); dom.importFileInput.value = ''; });
-            dom.btnResetAll.addEventListener('click', resetAll);
-            dom.btnClearLog.addEventListener('click', () => { STATE.scanLog = []; saveLocal(); renderLog(); });
-            dom.btnCloudInfo.addEventListener('click', () => alert('☁️ 数据自动保存在手机，导出JSON可存云盘'));
-            dom.btnRefreshStats.addEventListener('click', () => { recalcPassed(); saveLocal(); refreshAllUI(); });
-            window.addEventListener('beforeunload', () => { if (STATE.tableData.length) saveLocal(); });
-            document.addEventListener('visibilitychange', () => { if (document.hidden && STATE.tableData.length) saveLocal(); });
+            dom.btnManualSubmit.addEventListener('click',()=>{
+                const val=dom.manualQRInput.value.trim(); if(!val) return;
+                STATE.currentScanResult=null; processScan(val); dom.manualQRInput.value='';
+            });
+            dom.btnExport.addEventListener('click',exportData);
+            dom.btnImport.addEventListener('click',()=>dom.importFileInput.click());
+            dom.importFileInput.addEventListener('change',e=>{ if(e.target.files[0]) importData(e.target.files[0]); dom.importFileInput.value=''; });
+            dom.btnResetAll.addEventListener('click',resetAll);
+            dom.btnClearLog.addEventListener('click',()=>{ STATE.scanLog=[]; saveLocal(); renderLog(); });
+            dom.btnCloudInfo.addEventListener('click',()=>alert('☁️ 数据自动保存在手机，导出JSON可存云盘'));
+            dom.btnRefreshStats.addEventListener('click',()=>{ recalcPassed(); saveLocal(); refreshAllUI(); });
+            window.addEventListener('beforeunload',()=>{ if(STATE.tableData.length) saveLocal(); });
+            document.addEventListener('visibilitychange',()=>{ if(document.hidden&&STATE.tableData.length) saveLocal(); });
         };
 
-        // 启动
-        if (loadLocal()) refreshAllUI(); else { updateStats(); renderLog(); }
+        if(loadLocal()) refreshAllUI(); else { updateStats(); renderLog(); }
         bindEvents();
-        console.log('🚀 终极高清扫描版已启动');
+        console.log('🚀 终极高清连续扫描已启动');
     })();
 </script>
 </body>
