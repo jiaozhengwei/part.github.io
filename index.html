@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover, maximum-scale=1.0, minimum-scale=1.0">
-    <title>配件盘点工具 · 多策略解码版</title>
+    <title>配件盘点工具 · 识别成功版</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <style>
@@ -14,13 +14,7 @@
             --safe-bottom: env(safe-area-inset-bottom, 16px);
         }
         * { margin:0; padding:0; box-sizing:border-box; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif;
-            background: var(--bg); color: var(--text);
-            min-height: 100vh; min-height: -webkit-fill-available;
-            padding-bottom: calc(80px + var(--safe-bottom));
-            -webkit-tap-highlight-color: transparent; line-height: 1.5; user-select: none;
-        }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; min-height: -webkit-fill-available; padding-bottom: calc(80px + var(--safe-bottom)); -webkit-tap-highlight-color: transparent; line-height: 1.5; user-select: none; }
         .app-header { background: var(--card); padding:12px 16px; position:sticky; top:0; z-index:100; box-shadow:var(--shadow); display:flex; align-items:center; justify-content:space-between; }
         .logo-area { display:flex; align-items:center; gap:10px; }
         .logo-icon { width:38px; height:38px; border-radius:10px; background: linear-gradient(135deg, #1a73e8, #4a9af5); display:flex; align-items:center; justify-content:center; font-size:20px; color:#fff; }
@@ -49,12 +43,7 @@
         .scanner-close { position:absolute; top:16px; right:16px; z-index:10002; width:40px; height:40px; border-radius:50%; background:rgba(255,255,255,0.25); border:none; color:#fff; font-size:22px; cursor:pointer; }
         #scanner-video { width:100%; height:100%; object-fit:cover; display:block; }
         .scanner-info { position:absolute; top:16px; left:16px; z-index:10002; background:rgba(0,0,0,0.6); color:#fff; font-size:12px; padding:6px 12px; border-radius:8px; display:flex; align-items:center; gap:8px; }
-        .scanner-hint {
-            position:absolute; bottom:100px; left:50%; transform:translateX(-50%);
-            background:rgba(0,0,0,0.8); color:#ffcc00; font-size:14px; padding:10px 20px;
-            border-radius:20px; z-index:10001; pointer-events:none; white-space:nowrap;
-            font-weight:bold;
-        }
+        .scanner-hint { position:absolute; bottom:100px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.8); color:#ffcc00; font-size:14px; padding:10px 20px; border-radius:20px; z-index:10001; pointer-events:none; white-space:nowrap; font-weight:bold; }
         .scanner-overlay-frame { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:280px; height:280px; border:3px solid rgba(255,255,255,0.9); border-radius:20px; z-index:10000; pointer-events:none; box-shadow:0 0 0 2000px rgba(0,0,0,0.6); }
         .scanner-controls { position:absolute; bottom:180px; left:50%; transform:translateX(-50%); display:flex; gap:12px; z-index:10002; flex-wrap:wrap; justify-content:center; }
         .flash-btn, .focus-btn { width:44px; height:44px; border-radius:50%; background:rgba(255,255,255,0.25); border:none; color:#fff; font-size:22px; cursor:pointer; display:none; align-items:center; justify-content:center; }
@@ -71,11 +60,10 @@
 </head>
 <body>
 <header class="app-header"><div class="logo-area"><div class="logo-icon">📦</div><h1>配件盘点工具</h1></div><div><button class="icon-btn" id="btnCloudInfo" style="background:none;border:none;font-size:18px;">☁️</button><button class="icon-btn" id="btnRefreshStats" style="background:none;border:none;font-size:18px;">🔄</button></div></header>
-
 <div class="main-content">
     <div class="card"><div class="card-header"><span class="card-title">📋 盘点表格</span><span style="font-size:11px;color:#666;" id="uploadStatus">请上传Excel</span></div><div class="upload-zone" id="uploadZone"><span>📁 点击上传 Excel 文件</span><input type="file" id="fileInput" accept=".xlsx,.xls"></div><div class="file-info" id="fileInfo" style="display:none;">✅ <span id="fileName"></span>（<span id="rowCount"></span>行）<button id="btnRemoveFile" style="margin-left:auto; background:none; border:none; color:red;">✕</button></div></div>
     <div class="stats-row"><div class="stat-item"><div class="stat-value total" id="statTotal">0</div><div style="font-size:11px;">总数</div></div><div class="stat-item"><div class="stat-value passed" id="statPassed">0</div><div style="font-size:11px;">通过</div></div><div class="stat-item"><div class="stat-value remaining" id="statRemaining">0</div><div style="font-size:11px;">待盘点</div></div></div>
-    <div class="card"><div class="card-header"><span class="card-title">📷 二维码扫描</span></div><div class="scan-fab-container"><button class="scan-fab video-scan" id="btnScanFab" title="连续扫描（多策略）">📹</button><button class="scan-fab photo-scan" id="btnPhotoScan" title="拍照扫描">📸</button></div><div style="text-align:center; font-size:12px; color:#666; margin:6px 0;" id="scanFabLabel">📹 连续 | 📸 拍照</div><div style="margin-top:8px;"><div style="font-size:11px;color:#666;">✍️ 手动输入</div><div style="display:flex; gap:8px;"><input type="text" id="manualQRInput" placeholder="粘贴二维码内容..." style="flex:1; border:1px solid #ccc; border-radius:20px; padding:10px;"><button class="btn btn-outline btn-sm" id="btnManualSubmit">确认</button></div></div></div>
+    <div class="card"><div class="card-header"><span class="card-title">📷 二维码扫描</span></div><div class="scan-fab-container"><button class="scan-fab video-scan" id="btnScanFab" title="连续扫描（精准解码）">📹</button><button class="scan-fab photo-scan" id="btnPhotoScan" title="拍照扫描">📸</button></div><div style="text-align:center; font-size:12px; color:#666; margin:6px 0;" id="scanFabLabel">📹 连续 | 📸 拍照</div><div style="margin-top:8px;"><div style="font-size:11px;color:#666;">✍️ 手动输入</div><div style="display:flex; gap:8px;"><input type="text" id="manualQRInput" placeholder="粘贴二维码内容..." style="flex:1; border:1px solid #ccc; border-radius:20px; padding:10px;"><button class="btn btn-outline btn-sm" id="btnManualSubmit">确认</button></div></div></div>
     <div class="card"><div class="card-header"><span class="card-title">📝 表格预览</span></div><div class="table-container" id="tableContainer"><div style="padding:30px;text-align:center;color:#999;">暂无数据</div></div></div>
     <div class="card"><div class="card-header"><span class="card-title">📜 扫描日志</span><button class="btn btn-outline btn-sm" id="btnClearLog">清空</button></div><ul class="log-list" id="logList"><li style="color:#999;">暂无记录</li></ul></div>
 </div>
@@ -115,7 +103,6 @@
             scanLog:[], isScanning:false, currentScanResult:null,
             mediaStream:null, videoTrack:null, scanInterval:null, flashOn:false
         };
-
         const $=id=>document.getElementById(id);
         const dom = {
             fileInput:$('fileInput'), uploadZone:$('uploadZone'), uploadStatus:$('uploadStatus'),
@@ -141,8 +128,7 @@
             void el.offsetWidth; el.classList.add('show');
             toastTimer=setTimeout(()=>el.classList.remove('show'),2000);
         };
-
-        const STORAGE_KEY = 'parts_multistrategy_v1';
+        const STORAGE_KEY = 'parts_final_ok';
         const saveLocal = ()=>{ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({ tableData:STATE.tableData, headers:STATE.headers, fileName:STATE.fileName, totalRows:STATE.totalRows, passedCount:STATE.passedCount, scanLog:STATE.scanLog.slice(-100) })); }catch(e){} };
         const loadLocal = ()=>{ try{ const d=JSON.parse(localStorage.getItem(STORAGE_KEY)); if(!d||!d.tableData) return false; STATE.tableData=d.tableData; STATE.headers=d.headers||[]; STATE.fileName=d.fileName||''; STATE.totalRows=d.totalRows||d.tableData.length; STATE.passedCount=d.passedCount||0; STATE.scanLog=d.scanLog||[]; recalcPassed(); return true; }catch(e){return false;} };
         const recalcPassed = ()=> STATE.passedCount = STATE.tableData.filter(r=>r.T==='通过').length;
@@ -155,25 +141,22 @@
         });
 
         const analyzeQR = text => {
-            if(!text||text.length<20) return {success:false,error:'内容过短（需≥20位）'};
+            if(!text||text.length<20) return {success:false,error:'内容过短'};
             return {success:true, searchB:text.substring(5,12), searchG:text.substring(12,19), searchN:text.substring(19)};
         };
         const processScan = qrText => {
             if(STATE.currentScanResult===qrText && STATE.isScanning) return;
             STATE.currentScanResult=qrText;
-            console.log('识别成功:', qrText);
+            console.log('解码成功:', qrText);
             const a=analyzeQR(qrText);
-            if(!a.success){ toast('❌ '+a.error,'error'); playErr(); addLog(qrText,false,a.error); dom.scannerHint.textContent=a.error; pauseScan(); return; }
+            if(!a.success){ toast('❌ '+a.error,'error'); playErr(); addLog(qrText,false,a.error); pauseScan(); return; }
             const {searchB,searchG,searchN}=a;
             const matches=STATE.tableData.filter(r=>String(r.B||'').trim()===searchB);
-            if(!matches.length){ toast('⚠️ 未找到B列匹配','error'); playErr(); addLog(qrText,false,'B列无匹配'); dom.scannerHint.textContent='未找到B列匹配项'; pauseScan(); return; }
+            if(!matches.length){ toast('⚠️ 未找到B列匹配','error'); playErr(); addLog(qrText,false,'B列无匹配'); pauseScan(); return; }
             const full=matches.filter(r=>String(r.G||'').trim()===searchG && String(r.N||'').trim()===searchN);
             let updated=0; full.forEach(r=>{ if(r.T!=='通过'){ r.T='通过'; updated++; } });
-            if(updated>0){
-                recalcPassed(); saveLocal(); updateStats(); renderTable();
-                toast('✅ 盘点通过','success'); playOk(); addLog(qrText,true,'通过');
-                dom.scannerHint.textContent='✅ 通过';
-            }else if(full.length>0){ toast('ℹ️ 已通过','info'); dom.scannerHint.textContent='已通过'; }
+            if(updated>0){ recalcPassed(); saveLocal(); updateStats(); renderTable(); toast('✅ 盘点通过','success'); playOk(); addLog(qrText,true,'通过'); dom.scannerHint.textContent='✅ 通过'; }
+            else if(full.length>0){ toast('ℹ️ 已通过','info'); dom.scannerHint.textContent='已通过'; }
             else{ toast('⚠️ G/N列不匹配','error'); playErr(); addLog(qrText,false,'G/N不匹配'); dom.scannerHint.textContent='G/N列不匹配'; }
             pauseScan();
         };
@@ -186,147 +169,75 @@
         const updateUploadUI = ()=>{ if(STATE.fileName){ dom.uploadZone.classList.add('has-file'); dom.uploadStatus.textContent='已加载'; dom.fileInfo.style.display='flex'; dom.fileName.textContent=STATE.fileName; dom.rowCount.textContent=STATE.totalRows; } else{ dom.uploadZone.classList.remove('has-file'); dom.uploadStatus.textContent='请上传Excel'; dom.fileInfo.style.display='none'; } };
         const refreshAllUI = ()=>{ updateStats(); renderTable(); renderLog(); updateUploadUI(); };
 
-        // 多策略解码引擎
+        // 解码核心
         let barcodeDetector = null;
-        if (typeof BarcodeDetector !== 'undefined') { try { barcodeDetector = new BarcodeDetector({ formats: ['qr_code'] }); } catch(e) {} }
+        if (typeof BarcodeDetector !== 'undefined' && BarcodeDetector.getSupportedFormats) {
+            BarcodeDetector.getSupportedFormats().then(formats => {
+                if (formats.includes('qr_code')) barcodeDetector = new BarcodeDetector({ formats: ['qr_code'] });
+            });
+        } else if (typeof BarcodeDetector !== 'undefined') {
+            try { barcodeDetector = new BarcodeDetector({ formats: ['qr_code'] }); } catch(e) {}
+        }
 
-        // 辅助函数：缩放图像数据
+        function applyFixedThreshold(imageData, threshold = 128) {
+            const {data, width, height} = imageData;
+            const out = new Uint8ClampedArray(data.length);
+            for (let i = 0; i < data.length; i += 4) {
+                const gray = data[i] * 0.299 + data[i+1] * 0.587 + data[i+2] * 0.114;
+                const val = gray > threshold ? 255 : 0;
+                out[i] = out[i+1] = out[i+2] = val;
+                out[i+3] = 255;
+            }
+            return new ImageData(out, width, height);
+        }
+
         function scaleImageData(imageData, scale) {
-            const w = Math.floor(imageData.width * scale);
-            const h = Math.floor(imageData.height * scale);
+            const w = Math.floor(imageData.width * scale), h = Math.floor(imageData.height * scale);
             if (w < 20 || h < 20) return null;
             const canvas = document.createElement('canvas');
             canvas.width = w; canvas.height = h;
             const ctx = canvas.getContext('2d');
-            ctx.putImageData(imageData, 0, 0);
-            // 使用drawImage缩放
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = imageData.width; tempCanvas.height = imageData.height;
-            const tempCtx = tempCanvas.getContext('2d');
-            tempCtx.putImageData(imageData, 0, 0);
-            ctx.drawImage(tempCanvas, 0, 0, w, h);
+            const temp = document.createElement('canvas');
+            temp.width = imageData.width; temp.height = imageData.height;
+            temp.getContext('2d').putImageData(imageData, 0, 0);
+            ctx.drawImage(temp, 0, 0, w, h);
             return ctx.getImageData(0, 0, w, h);
         }
 
-        // 颜色反转
-        function invertImageData(imageData) {
-            const data = new Uint8ClampedArray(imageData.data);
-            for (let i = 0; i < data.length; i += 4) {
-                data[i] = 255 - data[i];
-                data[i+1] = 255 - data[i+1];
-                data[i+2] = 255 - data[i+2];
-            }
-            return new ImageData(data, imageData.width, imageData.height);
-        }
-
-        // 直方图均衡化 (CLAHE简化版)
-        function equalizeHistogram(imageData) {
-            const {data, width, height} = imageData;
-            const gray = new Uint8Array(width * height);
-            for (let i = 0; i < data.length; i += 4) {
-                gray[i/4] = Math.round(0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2]);
-            }
-            const hist = new Array(256).fill(0);
-            gray.forEach(v => hist[v]++);
-            const cdf = new Array(256).fill(0);
-            cdf[0] = hist[0];
-            for (let i = 1; i < 256; i++) cdf[i] = cdf[i-1] + hist[i];
-            const minCdf = cdf.find(v => v > 0) || 0;
-            const totalPixels = width * height;
-            const map = new Array(256);
-            for (let i = 0; i < 256; i++) {
-                map[i] = Math.round((cdf[i] - minCdf) / (totalPixels - minCdf) * 255);
-            }
-            const out = new Uint8ClampedArray(data.length);
-            for (let i = 0; i < gray.length; i++) {
-                const val = map[gray[i]];
-                const idx = i * 4;
-                out[idx] = out[idx+1] = out[idx+2] = val;
-                out[idx+3] = 255;
-            }
-            return new ImageData(out, width, height);
-        }
-
-        // 自适应二值化
-        function applyAdaptiveThreshold(imageData) {
-            const {data, width, height} = imageData;
-            const gray = new Uint8Array(width * height);
-            for (let i = 0; i < data.length; i += 4) gray[i/4] = Math.round(0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2]);
-            const hist = new Array(256).fill(0); gray.forEach(v => hist[v]++);
-            let total = gray.length, sum = 0; for (let i = 0; i < 256; i++) sum += i * hist[i];
-            let sumB = 0, wB = 0, wF = 0, maxVar = 0, th = 0;
-            for (let i = 0; i < 256; i++) {
-                wB += hist[i]; if (wB === 0) continue;
-                wF = total - wB; if (wF === 0) break;
-                sumB += i * hist[i];
-                const mB = sumB / wB, mF = (sum - sumB) / wF;
-                const v = wB * wF * (mB - mF) * (mB - mF);
-                if (v > maxVar) { maxVar = v; th = i; }
-            }
-            const out = new Uint8ClampedArray(data.length);
-            for (let i = 0; i < gray.length; i++) {
-                const val = gray[i] > th ? 255 : 0;
-                const idx = i * 4;
-                out[idx] = out[idx+1] = out[idx+2] = val; out[idx+3] = 255;
-            }
-            return new ImageData(out, width, height);
-        }
-
-        // jsQR 基本调用
-        function tryJsQR(imageData) {
-            if (imageData.width < 20 || imageData.height < 20) return null;
-            return jsQR(imageData.data, imageData.width, imageData.height);
-        }
-
-        // 综合解码策略
-        function decodeImageData(imageData) {
-            // 策略0: 原始图像
-            let code = tryJsQR(imageData);
+        function tryDecodeWithStrategy(imageData) {
+            // 直接尝试
+            let code = jsQR(imageData.data, imageData.width, imageData.height);
             if (code) return code.data;
-
-            // 策略1: 直方图均衡化
-            const eq = equalizeHistogram(imageData);
-            code = tryJsQR(eq);
+            // 固定阈值二值化
+            const binary = applyFixedThreshold(imageData, 128);
+            code = jsQR(binary.data, binary.width, binary.height);
             if (code) return code.data;
-
-            // 策略2: 自适应二值化
-            const binary = applyAdaptiveThreshold(imageData);
-            code = tryJsQR(binary);
+            // 阈值150
+            const binary2 = applyFixedThreshold(imageData, 150);
+            code = jsQR(binary2.data, binary2.width, binary2.height);
             if (code) return code.data;
-
-            // 策略3: 反转颜色
-            const inverted = invertImageData(imageData);
-            code = tryJsQR(inverted);
-            if (code) return code.data;
-
-            // 策略4: 缩放尝试 (缩小和放大)
+            // 缩放尝试 0.8, 1.2, 0.5, 2.0
             const scales = [0.8, 1.2, 0.5, 2.0];
             for (let s of scales) {
                 const scaled = scaleImageData(imageData, s);
                 if (!scaled) continue;
-                code = tryJsQR(scaled);
+                code = jsQR(scaled.data, scaled.width, scaled.height);
                 if (code) return code.data;
             }
-
-            // 策略5: 均衡化后反转
-            const eqInv = invertImageData(eq);
-            code = tryJsQR(eqInv);
-            if (code) return code.data;
-
             return null;
         }
 
         async function decodeFrame(video) {
             if (video.readyState < 2 || video.videoWidth < 1) return null;
             const vw = video.videoWidth, vh = video.videoHeight;
-            const cropSize = Math.min(450, vw, vh);
+            const cropSize = Math.min(300, vw, vh); // 缩小解码区
             const sx = (vw - cropSize) / 2, sy = (vh - cropSize) / 2;
             const canvas = document.createElement('canvas');
             canvas.width = cropSize; canvas.height = cropSize;
             const ctx = canvas.getContext('2d', { willReadFrequently: true });
             ctx.drawImage(video, sx, sy, cropSize, cropSize, 0, 0, cropSize, cropSize);
 
-            // 尝试BarcodeDetector
+            // BarcodeDetector
             if (barcodeDetector) {
                 try {
                     const codes = await barcodeDetector.detect(canvas);
@@ -335,30 +246,26 @@
             }
 
             const imageData = ctx.getImageData(0, 0, cropSize, cropSize);
-            return decodeImageData(imageData);
+            return tryDecodeWithStrategy(imageData);
         }
 
         let lastDecodeTime = 0;
-        const SCAN_INTERVAL = 250;
+        const SCAN_INTERVAL = 300;
         let missCounter = 0;
-        let decodeAttempt = 0;
         function scanLoop(now) {
             if (!STATE.isScanning) return;
             if (now - lastDecodeTime >= SCAN_INTERVAL) {
                 lastDecodeTime = now;
-                decodeAttempt++;
                 decodeFrame(dom.scannerVideo).then(result => {
                     if (result) {
                         missCounter = 0;
-                        dom.scannerHint.textContent = '';
                         processScan(result.trim());
                     } else {
                         missCounter++;
-                        if (missCounter > 2) {
-                            dom.scannerHint.textContent = `⏳ 尝试解码中... (${decodeAttempt}) 请保持稳定`;
-                        }
-                        if (missCounter > 6) {
-                            dom.scannerHint.textContent = '⚠️ 未识别，请调整距离或角度';
+                        if (missCounter >= 5 && missCounter < 10) {
+                            dom.scannerHint.textContent = `⏳ 持续解码中... (${missCounter}) 请保持`;
+                        } else if (missCounter >= 10) {
+                            dom.scannerHint.textContent = '⚠️ 无法识别，建议使用📸拍照扫描';
                         }
                     }
                 }).catch(()=>{});
@@ -387,7 +294,7 @@
             setTimeout(updateRes, 1000);
             dom.scannerModal.classList.add('active');
             dom.btnScanFab.classList.add('scanning');
-            dom.scanFabLabel.textContent = '📹 多策略解码...';
+            dom.scanFabLabel.textContent = '📹 解码中...';
             STATE.isScanning = true; STATE.currentScanResult = null;
             if (STATE.videoTrack) {
                 applyFocus(STATE.videoTrack);
@@ -395,26 +302,21 @@
                 initManualFocus(STATE.videoTrack);
             }
             startBrightnessMonitor();
-            lastDecodeTime = 0; missCounter = 0; decodeAttempt = 0;
+            lastDecodeTime = 0; missCounter = 0;
             STATE.scanInterval = requestAnimationFrame(scanLoop);
         }
 
         function applyFocus(track) { track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {}); }
         function initFlashButton(track) {
             const cap = track.getCapabilities ? track.getCapabilities() : {};
-            if (cap.torch && cap.torch.includes(true)) {
-                dom.btnFlashToggle.style.display = 'flex';
-                dom.btnFlashToggle.onclick = () => { STATE.flashOn=!STATE.flashOn; track.applyConstraints({advanced:[{torch:STATE.flashOn}]}).catch(()=>{}); dom.btnFlashToggle.textContent=STATE.flashOn?'🔦✨':'🔦'; };
-            } else dom.btnFlashToggle.style.display = 'none';
+            if (cap.torch && cap.torch.includes(true)) { dom.btnFlashToggle.style.display='flex'; dom.btnFlashToggle.onclick=()=>{ STATE.flashOn=!STATE.flashOn; track.applyConstraints({advanced:[{torch:STATE.flashOn}]}).catch(()=>{}); dom.btnFlashToggle.textContent=STATE.flashOn?'🔦✨':'🔦'; }; }
+            else dom.btnFlashToggle.style.display='none';
         }
         function initManualFocus(track) {
             const cap = track.getCapabilities ? track.getCapabilities() : {};
-            if (cap.focusMode && cap.focusMode.includes('manual')) {
-                dom.focusSliderContainer.style.display = 'flex';
-                dom.focusSlider.oninput = () => track.applyConstraints({advanced:[{focusMode:'manual',focusDistance:parseFloat(dom.focusSlider.value)}]}).catch(()=>{});
-            } else dom.focusSliderContainer.style.display = 'none';
-            dom.btnAutoFocus.style.display = 'flex';
-            dom.btnAutoFocus.onclick = () => { track.applyConstraints({advanced:[{focusMode:'auto'}]}).then(()=>setTimeout(()=>applyFocus(track),800)).catch(()=>{}); toast('🎯 对焦中…','info'); };
+            if (cap.focusMode && cap.focusMode.includes('manual')) { dom.focusSliderContainer.style.display='flex'; dom.focusSlider.oninput=()=>track.applyConstraints({advanced:[{focusMode:'manual',focusDistance:parseFloat(dom.focusSlider.value)}]}).catch(()=>{}); }
+            else dom.focusSliderContainer.style.display='none';
+            dom.btnAutoFocus.style.display='flex'; dom.btnAutoFocus.onclick=()=>{ track.applyConstraints({advanced:[{focusMode:'auto'}]}).then(()=>setTimeout(()=>applyFocus(track),800)).catch(()=>{}); toast('🎯 对焦中…','info'); };
         }
         function startBrightnessMonitor() {
             if (STATE.brightnessTimer) clearInterval(STATE.brightnessTimer);
@@ -424,9 +326,8 @@
                 const c = document.createElement('canvas'); c.width=32; c.height=32; const ctx=c.getContext('2d'); ctx.drawImage(video,0,0,32,32);
                 const d = ctx.getImageData(0,0,32,32).data; let sum=0;
                 for (let i=0;i<d.length;i+=4) sum+=(d[i]*0.299+d[i+1]*0.587+d[i+2]*0.114);
-                const avg = sum/(d.length/4);
-                if (missCounter > 2) return;
-                dom.scannerHint.textContent = avg<80 ? '光线暗，请开闪光灯' : '对准框内自动识别';
+                if (missCounter > 4) return;
+                dom.scannerHint.textContent = (sum/(d.length/4))<80 ? '光线暗，请开闪光灯' : '对准框内自动识别';
             }, 1500);
         }
         function stopVideoScanner() {
@@ -439,10 +340,9 @@
             dom.scanFabLabel.textContent = '📹 连续 | 📸 拍照';
             STATE.currentScanResult = null;
             if (STATE.brightnessTimer) { clearInterval(STATE.brightnessTimer); STATE.brightnessTimer = null; }
-            dom.btnFlashToggle.style.display = 'none'; dom.btnAutoFocus.style.display = 'none'; dom.focusSliderContainer.style.display = 'none';
+            dom.btnFlashToggle.style.display='none'; dom.btnAutoFocus.style.display='none'; dom.focusSliderContainer.style.display='none';
         }
 
-        // 拍照扫描（复用多策略解码）
         async function photoScanFromFile(file) {
             try {
                 const img = new Image(); img.src = URL.createObjectURL(file);
@@ -453,7 +353,7 @@
                 const ctx=canvas.getContext('2d',{willReadFrequently:true}); ctx.drawImage(img,0,0,w,h); URL.revokeObjectURL(img.src);
                 if(barcodeDetector){ try{ const codes=await barcodeDetector.detect(canvas); if(codes.length>0){ processScan(codes[0].rawValue.trim()); toast('📸 成功','success'); playOk(); dom.photoInput.value=''; return; } }catch(e){} }
                 const imageData=ctx.getImageData(0,0,w,h);
-                const result = decodeImageData(imageData);
+                const result = tryDecodeWithStrategy(imageData);
                 if(result){ processScan(result.trim()); toast('📸 成功','success'); playOk(); }
                 else{ toast('❌ 未识别','error'); playErr(); }
             } catch(e) { toast('❌ 图片处理失败','error'); }
