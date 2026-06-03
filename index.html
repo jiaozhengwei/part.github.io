@@ -2,1134 +2,290 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>二维码扫描匹配系统</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover, maximum-scale=1.0, minimum-scale=1.0">
+    <title>配件盘点工具 · 精准匹配版</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; }
-        body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
-        
-        .container { 
-            max-width: 1200px; 
-            margin: 0 auto; 
-            background: white; 
-            border-radius: 20px; 
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3); 
-            overflow: hidden; 
+        :root {
+            --primary: #1a73e8; --success: #0d904f; --danger: #d93025; --warning: #e6a817;
+            --bg: #f5f6f8; --card: #fff; --text: #202124; --border: #e0e0e0;
+            --shadow: 0 2px 8px rgba(0,0,0,0.08); --radius: 14px;
+            --safe-bottom: env(safe-area-inset-bottom, 16px);
         }
-        
-        .header { 
-            background: linear-gradient(to right, #4a6ee0, #5a3ec8); 
-            color: white; 
-            padding: 25px 40px; 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center; 
-        }
-        
-        .header h1 { font-size: 28px; font-weight: 600; }
-        .stats { display: flex; gap: 20px; font-size: 16px; }
-        .stat-item { text-align: center; }
-        .stat-value { font-size: 24px; font-weight: 700; display: block; }
-        
-        .main-content { 
-            display: grid; 
-            grid-template-columns: 1fr 1fr; 
-            gap: 30px; 
-            padding: 30px; 
-        }
-        
-        .scanner-section { 
-            background: #f8f9fa; 
-            border-radius: 15px; 
-            padding: 25px; 
-            box-shadow: 0 8px 20px rgba(0,0,0,0.08); 
-        }
-        
-        .video-container { 
-            position: relative; 
-            width: 100%; 
-            aspect-ratio: 4/3; 
-            background: #000; 
-            border-radius: 10px; 
-            overflow: hidden; 
-            margin-bottom: 20px; 
-        }
-        
-        #scannerVideo { 
-            width: 100%; 
-            height: 100%; 
-            object-fit: cover; 
-        }
-        
-        .scanner-overlay { 
-            position: absolute; 
-            top: 0; left: 0; 
-            width: 100%; 
-            height: 100%; 
-            display: grid; 
-            grid-template-columns: 1fr 3fr 1fr; 
-            grid-template-rows: 1fr 3fr 1fr; 
-        }
-        
-        .scan-line { 
-            grid-column: 1 / -1; 
-            grid-row: 2; 
-            height: 3px; 
-            background: linear-gradient(90deg, transparent, #00ff00, transparent); 
-            animation: scan 2s linear infinite; 
-        }
-        
-        @keyframes scan { 
-            0% { transform: translateY(-100%); } 
-            100% { transform: translateY(200%); } 
-        }
-        
-        .control-panel { 
-            display: flex; 
-            gap: 15px; 
-            flex-wrap: wrap; 
-            margin-bottom: 20px; 
-        }
-        
-        .btn { 
-            padding: 12px 24px; 
-            border: none; 
-            border-radius: 8px; 
-            font-weight: 600; 
-            cursor: pointer; 
-            transition: all 0.3s; 
-            display: flex; 
-            align-items: center; 
-            gap: 8px; 
-        }
-        
-        .btn-primary { 
-            background: linear-gradient(to right, #4a6ee0, #5a3ec8); 
-            color: white; 
-        }
-        
-        .btn-success { 
-            background: linear-gradient(to right, #20c997, #17a2b8); 
-            color: white; 
-        }
-        
-        .btn-danger { 
-            background: linear-gradient(to right, #dc3545, #c82333); 
-            color: white; 
-        }
-        
-        .btn:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
-        
-        .result-panel { 
-            background: white; 
-            border-radius: 10px; 
-            padding: 20px; 
-            border: 2px solid #e9ecef; 
-            margin-top: 20px; 
-        }
-        
-        .qr-data { 
-            font-family: 'Courier New', monospace; 
-            font-size: 16px; 
-            color: #333; 
-            margin-bottom: 15px; 
-        }
-        
-        .data-segments { 
-            display: flex; 
-            gap: 10px; 
-            margin: 10px 0; 
-            flex-wrap: wrap; 
-        }
-        
-        .segment { 
-            padding: 8px 12px; 
-            border-radius: 6px; 
-            font-weight: 600; 
-            font-size: 14px; 
-        }
-        
-        .segment-b { background: #e3f2fd; color: #1565c0; border: 2px solid #bbdefb; }
-        .segment-g { background: #f3e5f5; color: #7b1fa2; border: 2px solid #e1bee7; }
-        .segment-n { background: #f1f8e9; color: #558b2f; border: 2px solid #dcedc8; }
-        
-        .match-status { 
-            padding: 10px; 
-            border-radius: 8px; 
-            font-weight: 600; 
-            text-align: center; 
-        }
-        
-        .match-success { background: #d4edda; color: #155724; }
-        .match-fail { background: #f8d7da; color: #721c24; }
-        
-        .data-section { 
-            background: white; 
-            border-radius: 15px; 
-            padding: 25px; 
-            box-shadow: 0 8px 20px rgba(0,0,0,0.08); 
-        }
-        
-        .data-header { 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center; 
-            margin-bottom: 20px; 
-        }
-        
-        .table-container { 
-            max-height: 500px; 
-            overflow-y: auto; 
-            border: 1px solid #dee2e6; 
-            border-radius: 8px; 
-        }
-        
-        table { 
-            width: 100%; 
-            border-collapse: collapse; 
-        }
-        
-        th { 
-            background: linear-gradient(to bottom, #f8f9fa, #e9ecef); 
-            padding: 12px 15px; 
-            text-align: left; 
-            border-bottom: 2px solid #dee2e6; 
-            position: sticky; 
-            top: 0; 
-        }
-        
-        td { 
-            padding: 10px 15px; 
-            border-bottom: 1px solid #dee2e6; 
-        }
-        
-        tr:hover { background: #f8f9fa; }
-        
-        .status-passed { 
-            background: #d4edda; 
-            color: #155724; 
-            font-weight: 600; 
-            padding: 4px 8px; 
-            border-radius: 4px; 
-        }
-        
-        .highlight { 
-            background: #fff3cd !important; 
-            transition: background 0.5s; 
-        }
-        
-        .log-section { 
-            grid-column: 1 / -1; 
-            background: white; 
-            border-radius: 15px; 
-            padding: 25px; 
-            margin-top: 20px; 
-            box-shadow: 0 8px 20px rgba(0,0,0,0.08); 
-        }
-        
-        .log-container { 
-            max-height: 200px; 
-            overflow-y: auto; 
-            border: 1px solid #dee2e6; 
-            border-radius: 8px; 
-            padding: 15px; 
-            font-family: 'Courier New', monospace; 
-            font-size: 13px; 
-        }
-        
-        .log-entry { 
-            padding: 5px 0; 
-            border-bottom: 1px solid #f0f0f0; 
-        }
-        
-        .log-success { color: #28a745; }
-        .log-error { color: #dc3545; }
-        .log-info { color: #17a2b8; }
-        
-        .toast-container { 
-            position: fixed; 
-            top: 20px; 
-            right: 20px; 
-            z-index: 1000; 
-        }
-        
-        .toast { 
-            background: white; 
-            border-radius: 8px; 
-            padding: 15px 20px; 
-            margin-bottom: 10px; 
-            box-shadow: 0 5px 15px rgba(0,0,0,0.2); 
-            border-left: 4px solid; 
-            animation: slideIn 0.3s; 
-        }
-        
-        .toast-success { border-color: #28a745; }
-        .toast-error { border-color: #dc3545; }
-        .toast-info { border-color: #17a2b8; }
-        
-        @keyframes slideIn { 
-            from { transform: translateX(100%); opacity: 0; } 
-            to { transform: translateX(0); opacity: 1; } 
-        }
-        
-        .loading { 
-            display: inline-block; 
-            width: 20px; 
-            height: 20px; 
-            border: 3px solid #f3f3f3; 
-            border-top: 3px solid #4a6ee0; 
-            border-radius: 50%; 
-            animation: spin 1s linear infinite; 
-        }
-        
-        @keyframes spin { 
-            0% { transform: rotate(0deg); } 
-            100% { transform: rotate(360deg); } 
-        }
-        
-        @media (max-width: 768px) { 
-            .main-content { grid-template-columns: 1fr; } 
-        }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding-bottom: calc(80px + var(--safe-bottom)); -webkit-tap-highlight-color: transparent; line-height: 1.5; user-select: none; }
+        .app-header { background: var(--card); padding:12px 16px; position:sticky; top:0; z-index:100; box-shadow:var(--shadow); display:flex; align-items:center; justify-content:space-between; }
+        .logo-area { display:flex; align-items:center; gap:10px; }
+        .logo-icon { width:38px; height:38px; border-radius:10px; background: linear-gradient(135deg, #1a73e8, #4a9af5); display:flex; align-items:center; justify-content:center; font-size:20px; color:#fff; }
+        .app-header h1 { font-size:18px; font-weight:700; }
+        .main-content { padding:12px 14px; display:flex; flex-direction:column; gap:12px; max-width:600px; margin:0 auto; }
+        .card { background:var(--card); border-radius:var(--radius); padding:16px; box-shadow:var(--shadow); }
+        .card-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+        .card-title { font-size:15px; font-weight:600; display:flex; align-items:center; gap:7px; }
+        .upload-zone { border:2px dashed #c5cae9; border-radius:10px; padding:22px; text-align:center; background:#fafbfd; position:relative; cursor:pointer; }
+        .upload-zone.has-file { border-color:var(--success); background:#e6f4ea; }
+        .upload-zone input[type="file"] { position:absolute; inset:0; opacity:0; cursor:pointer; }
+        .file-info { display:flex; align-items:center; gap:8px; margin-top:8px; font-size:13px; color:var(--success); }
+        .stats-row { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+        .stat-item { background:var(--card); border-radius:10px; padding:14px 10px; text-align:center; box-shadow:var(--shadow); }
+        .stat-value { font-size:28px; font-weight:700; }
+        .stat-value.total { color:var(--primary); } .stat-value.passed { color:var(--success); } .stat-value.remaining { color:var(--warning); }
+        .btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; border:none; border-radius:25px; padding:13px 22px; font-size:15px; font-weight:600; cursor:pointer; transition:0.2s; min-height:46px; background:var(--primary); color:#fff; box-shadow:0 4px 14px rgba(26,115,232,0.3); }
+        .btn:active { transform:scale(0.95); } .btn-outline { background:#fff; color:var(--primary); border:1.5px solid var(--primary); box-shadow:none; } .btn-sm { padding:8px 14px; font-size:13px; min-height:34px; border-radius:20px; }
+        .scan-fab-container { display:flex; justify-content:center; gap:16px; padding:8px 0; }
+        .scan-fab { width:90px; height:90px; border-radius:50%; border:none; font-size:36px; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 8px 28px rgba(26,115,232,0.4); transition:0.2s; }
+        .scan-fab.video-scan { background:linear-gradient(135deg, #1a73e8, #4a9af5); color:#fff; } .scan-fab.photo-scan { background:linear-gradient(135deg, #0d904f, #2ecc71); color:#fff; }
+        .scan-fab.scanning { background:linear-gradient(135deg, #d93025, #f06050) !important; animation:pulse-scan 1.5s infinite; }
+        @keyframes pulse-scan { 0%,100%{ box-shadow:0 8px 28px rgba(217,48,37,0.4); } 50%{ box-shadow:0 8px 40px rgba(217,48,37,0.7),0 0 0 20px rgba(217,48,37,0.08); } }
+        .scanner-modal { position:fixed; inset:0; z-index:9999; background:#000; display:none; flex-direction:column; align-items:center; justify-content:center; }
+        .scanner-modal.active { display:flex; }
+        .scanner-close { position:absolute; top:16px; right:16px; z-index:10002; width:40px; height:40px; border-radius:50%; background:rgba(255,255,255,0.25); border:none; color:#fff; font-size:22px; cursor:pointer; }
+        #scanner-video { width:100%; height:100%; object-fit:cover; display:block; }
+        .scanner-info { position:absolute; top:16px; left:16px; z-index:10002; background:rgba(0,0,0,0.6); color:#fff; font-size:12px; padding:6px 12px; border-radius:8px; display:flex; align-items:center; gap:8px; }
+        .scanner-hint { position:absolute; bottom:100px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.8); color:#ffcc00; font-size:14px; padding:10px 20px; border-radius:20px; z-index:10001; pointer-events:none; white-space:nowrap; font-weight:bold; }
+        .scanner-overlay-frame { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:280px; height:280px; border:3px solid rgba(255,255,255,0.9); border-radius:20px; z-index:10000; pointer-events:none; box-shadow:0 0 0 2000px rgba(0,0,0,0.6); }
+        .scanner-controls { position:absolute; bottom:180px; left:50%; transform:translateX(-50%); display:flex; gap:12px; z-index:10002; flex-wrap:wrap; justify-content:center; }
+        .flash-btn, .focus-btn { width:44px; height:44px; border-radius:50%; background:rgba(255,255,255,0.25); border:none; color:#fff; font-size:22px; cursor:pointer; display:none; align-items:center; justify-content:center; }
+        .focus-slider-container { display:none; align-items:center; gap:8px; background:rgba(0,0,0,0.5); padding:6px 12px; border-radius:20px; }
+        .focus-slider-container input[type=range] { width:100px; } .focus-slider-label { color:#fff; font-size:11px; }
+        .result-toast { position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:10003; padding:14px 24px; border-radius:25px; font-weight:600; font-size:13px; opacity:0; transition:0.35s; max-width:90vw; text-align:center; }
+        .result-toast.show { opacity:1; top:28px; } .result-toast.success { background:#0d904f; color:#fff; } .result-toast.error { background:#d93025; color:#fff; } .result-toast.info { background:#1a73e8; color:#fff; }
+        .table-container { overflow:auto; max-height:350px; border-radius:10px; border:1px solid var(--border); background:#fff; }
+        .table-container table { border-collapse:collapse; min-width:700px; font-size:11px; } .table-container th, .table-container td { padding:8px 6px; border-bottom:1px solid #eee; text-align:center; } .table-container th { background:#f8f9fb; position:sticky; top:0; }
+        .badge-pass { display:inline-block; padding:3px 10px; border-radius:12px; background:#0d904f; color:#fff; font-size:11px; }
+        .log-list { list-style:none; max-height:200px; overflow-y:auto; font-size:11px; } .log-list li { padding:8px; border-bottom:1px solid #f0f0f0; display:flex; gap:8px; align-items:center; } .log-dot { width:8px; height:8px; border-radius:50%; } .log-dot.ok { background:var(--success); } .log-dot.fail { background:var(--danger); }
+        .bottom-bar { position:fixed; bottom:0; left:0; right:0; background:var(--card); border-top:1px solid var(--border); padding:10px 14px calc(10px + var(--safe-bottom)); display:flex; gap:8px; z-index:90; } .bottom-bar .btn { flex:1; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>📱 二维码扫描匹配系统</h1>
-            <div class="stats">
-                <div class="stat-item">
-                    <span class="stat-value" id="totalCount">0</span>
-                    <span>总数</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-value" id="passedCount">0</span>
-                    <span>已通过</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-value" id="scanCount">0</span>
-                    <span>扫描次数</span>
-                </div>
-            </div>
-        </div>
-        
-        <div class="main-content">
-            <div class="scanner-section">
-                <h2 style="margin-bottom: 20px;">🔍 扫描区域</h2>
-                <div class="video-container">
-                    <video id="scannerVideo" playsinline></video>
-                    <div class="scanner-overlay">
-                        <div class="scan-line"></div>
-                    </div>
-                </div>
-                
-                <div class="control-panel">
-                    <button id="startBtn" class="btn btn-primary">
-                        <span id="startIcon">▶️</span>
-                        <span id="startText">开始扫描</span>
-                    </button>
-                    <button id="uploadBtn" class="btn btn-success">
-                        📁 上传数据
-                    </button>
-                    <button id="exportBtn" class="btn btn-success">
-                        📥 导出结果
-                    </button>
-                    <button id="clearBtn" class="btn btn-danger">
-                        🗑️ 清除数据
-                    </button>
-                </div>
-                
-                <div id="scannerStatus" style="padding: 10px; text-align: center; font-weight: 600;">
-                    等待启动摄像头...
-                </div>
-                
-                <div class="result-panel">
-                    <h3 style="margin-bottom: 10px;">📊 当前扫描结果</h3>
-                    <div class="qr-data" id="qrData">等待扫描...</div>
-                    
-                    <div id="segments" class="data-segments" style="display: none;">
-                        <div class="segment segment-b">
-                            B列匹配: <span id="segmentB">-</span>
-                        </div>
-                        <div class="segment segment-g">
-                            G列匹配: <span id="segmentG">-</span>
-                        </div>
-                        <div class="segment segment-n">
-                            N列匹配: <span id="segmentN">-</span>
-                        </div>
-                    </div>
-                    
-                    <div id="matchResult" class="match-status" style="display: none;">
-                        匹配结果
-                    </div>
-                </div>
-            </div>
-            
-            <div class="data-section">
-                <div class="data-header">
-                    <h2>📋 数据表格</h2>
-                    <div>
-                        <input type="file" id="fileInput" accept=".csv" style="display: none;">
-                        <button id="manualAddBtn" class="btn btn-primary" style="font-size: 14px;">
-                            ➕ 添加测试数据
-                        </button>
-                    </div>
-                </div>
-                
-                <div class="table-container">
-                    <table id="dataTable">
-                        <thead>
-                            <tr>
-                                <th width="50">#</th>
-                                <th width="120">B列</th>
-                                <th width="120">G列</th>
-                                <th width="150">N列</th>
-                                <th width="100">T列</th>
-                                <th>其他信息</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tableBody">
-                            <!-- 数据将通过JS动态加载 -->
-                        </tbody>
-                    </table>
-                </div>
-                
-                <div style="margin-top: 20px; color: #666; font-size: 14px;">
-                    <p>💡 说明：</p>
-                    <p>1. 扫描结果将提取第6-12位与B列对比，第13-19位与G列对比，第20位到最后与N列对比</p>
-                    <p>2. 三项匹配成功时，自动在T列标记"通过"</p>
-                </div>
-            </div>
-            
-            <div class="log-section">
-                <h2 style="margin-bottom: 15px;">📝 操作日志</h2>
-                <div class="log-container" id="logContainer">
-                    <div class="log-entry log-info">系统就绪，请上传数据并开始扫描</div>
-                </div>
-            </div>
-        </div>
+<header class="app-header"><div class="logo-area"><div class="logo-icon">📦</div><h1>配件盘点工具</h1></div></header>
+<div class="main-content">
+    <div class="card"><div class="card-header"><span class="card-title">📋 盘点表格</span><span style="font-size:11px;color:#666;" id="uploadStatus">请上传Excel</span></div><div class="upload-zone" id="uploadZone"><span>📁 点击上传 Excel 文件</span><input type="file" id="fileInput" accept=".xlsx,.xls"></div><div class="file-info" id="fileInfo" style="display:none;">✅ <span id="fileName"></span>（<span id="rowCount"></span>行）<button id="btnRemoveFile" style="margin-left:auto; background:none; border:none; color:red;">✕</button></div></div>
+    <div class="stats-row"><div class="stat-item"><div class="stat-value total" id="statTotal">0</div><div style="font-size:11px;">总数</div></div><div class="stat-item"><div class="stat-value passed" id="statPassed">0</div><div style="font-size:11px;">通过</div></div><div class="stat-item"><div class="stat-value remaining" id="statRemaining">0</div><div style="font-size:11px;">待盘点</div></div></div>
+    <div class="card"><div class="card-header"><span class="card-title">📷 二维码扫描</span></div><div class="scan-fab-container"><button class="scan-fab video-scan" id="btnScanFab" title="连续扫描（精准解码）">📹</button><button class="scan-fab photo-scan" id="btnPhotoScan" title="拍照扫描">📸</button></div><div style="text-align:center; font-size:12px; color:#666; margin:6px 0;" id="scanFabLabel">📹 连续 | 📸 拍照</div><div style="margin-top:8px;"><div style="font-size:11px;color:#666;">✍️ 手动输入</div><div style="display:flex; gap:8px;"><input type="text" id="manualQRInput" placeholder="粘贴二维码内容..." style="flex:1; border:1px solid #ccc; border-radius:20px; padding:10px;"><button class="btn btn-outline btn-sm" id="btnManualSubmit">确认</button></div></div></div>
+    <div class="card"><div class="card-header"><span class="card-title">📝 表格预览</span></div><div class="table-container" id="tableContainer"><div style="padding:30px;text-align:center;color:#999;">暂无数据</div></div></div>
+    <div class="card"><div class="card-header"><span class="card-title">📜 扫描日志</span><button class="btn btn-outline btn-sm" id="btnClearLog">清空</button></div><ul class="log-list" id="logList"><li style="color:#999;">暂无记录</li></ul></div>
+</div>
+
+<div class="scanner-modal" id="scannerModal">
+    <button class="scanner-close" id="btnScannerClose">✕</button>
+    <video id="scanner-video" autoplay playsinline muted></video>
+    <div class="scanner-info" id="scannerInfo"><span id="resolutionLabel">--</span></div>
+    <div class="scanner-overlay-frame"></div>
+    <div class="scanner-hint" id="scannerHint">将二维码对准框内</div>
+    <div id="focusTapArea" style="position:absolute; top:0; left:0; width:100%; height:100%; z-index:10001; background:transparent;"></div>
+    <div class="scanner-controls">
+        <button class="flash-btn" id="btnFlashToggle" title="闪光灯">🔦</button>
+        <button class="focus-btn" id="btnAutoFocus" title="自动对焦">🎯</button>
+        <div class="focus-slider-container" id="focusSliderContainer"><span class="focus-slider-label">焦距</span><input type="range" id="focusSlider" min="0" max="20" step="0.1" value="10"></div>
     </div>
-    
-    <div class="toast-container" id="toastContainer"></div>
-    
-    <!-- 导入jsQR库 -->
-    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
-    
-    <script>
-        // 状态管理
+</div>
+<input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none;">
+<div class="result-toast" id="resultToast"></div>
+
+<div class="bottom-bar">
+    <button class="btn btn-outline btn-sm" id="btnExport">💾 导出</button>
+    <button class="btn btn-outline btn-sm" id="btnImport">📥 导入</button>
+    <button class="btn btn-outline btn-sm" id="btnResetAll">🗑️ 重置</button>
+</div>
+<input type="file" id="importFileInput" accept=".json" style="display:none;">
+
+<script>
+    (() => {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext; let audioCtx;
+        const beep = (f,d,t='sine') => { try{ if(!audioCtx) audioCtx=new AudioCtx(); if(audioCtx.state==='suspended') audioCtx.resume(); const o=audioCtx.createOscillator(),g=audioCtx.createGain(); o.type=t; o.frequency.value=f; g.gain.setValueAtTime(0.3,audioCtx.currentTime); g.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+d); o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime+d); }catch(e){} };
+        const playOk = ()=>{ beep(880,0.12); setTimeout(()=>beep(1100,0.18),100); };
+        const playErr = ()=> beep(280,0.25,'square');
+
         const STATE = {
-            isScanning: false,
-            currentScanResult: null,
-            mediaStream: null,
-            scanInterval: null,
-            tableData: [],
-            scanStats: {
-                total: 0,
-                passed: 0,
-                scans: 0
-            },
-            lastScanTime: null
+            tableData:[], headers:[], fileName:'', totalRows:0, passedCount:0,
+            scanLog:[], isScanning:false, currentScanResult:null,
+            mediaStream:null, videoTrack:null, scanInterval:null, flashOn:false,
+            brightnessTimer: null
         };
-        
-        // DOM元素引用
+        const $=id=>document.getElementById(id);
         const dom = {
-            scannerVideo: document.getElementById('scannerVideo'),
-            startBtn: document.getElementById('startBtn'),
-            uploadBtn: document.getElementById('uploadBtn'),
-            exportBtn: document.getElementById('exportBtn'),
-            clearBtn: document.getElementById('clearBtn'),
-            fileInput: document.getElementById('fileInput'),
-            manualAddBtn: document.getElementById('manualAddBtn'),
-            scannerStatus: document.getElementById('scannerStatus'),
-            qrData: document.getElementById('qrData'),
-            segments: document.getElementById('segments'),
-            segmentB: document.getElementById('segmentB'),
-            segmentG: document.getElementById('segmentG'),
-            segmentN: document.getElementById('segmentN'),
-            matchResult: document.getElementById('matchResult'),
-            tableBody: document.getElementById('tableBody'),
-            logContainer: document.getElementById('logContainer'),
-            toastContainer: document.getElementById('toastContainer'),
-            totalCount: document.getElementById('totalCount'),
-            passedCount: document.getElementById('passedCount'),
-            scanCount: document.getElementById('scanCount'),
-            startIcon: document.getElementById('startIcon'),
-            startText: document.getElementById('startText')
+            fileInput:$('fileInput'), uploadZone:$('uploadZone'), uploadStatus:$('uploadStatus'),
+            fileInfo:$('fileInfo'), fileName:$('fileName'), rowCount:$('rowCount'), btnRemoveFile:$('btnRemoveFile'),
+            statTotal:$('statTotal'), statPassed:$('statPassed'), statRemaining:$('statRemaining'),
+            btnScanFab:$('btnScanFab'), btnPhotoScan:$('btnPhotoScan'), scanFabLabel:$('scanFabLabel'),
+            scannerModal:$('scannerModal'), btnScannerClose:$('btnScannerClose'), scannerHint:$('scannerHint'),
+            scannerVideo:$('scanner-video'), manualQRInput:$('manualQRInput'), btnManualSubmit:$('btnManualSubmit'),
+            tableContainer:$('tableContainer'), logList:$('logList'), btnClearLog:$('btnClearLog'),
+            resultToast:$('resultToast'), btnExport:$('btnExport'), btnImport:$('btnImport'),
+            btnResetAll:$('btnResetAll'), importFileInput:$('importFileInput'),
+            focusTapArea:$('focusTapArea'), photoInput:$('photoInput'),
+            btnFlashToggle:$('btnFlashToggle'), btnAutoFocus:$('btnAutoFocus'),
+            focusSliderContainer:$('focusSliderContainer'), focusSlider:$('focusSlider'),
+            resolutionLabel:$('resolutionLabel')
         };
-        
-        // 音效
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        
-        function playBeep(frequency, duration, type = 'sine') {
-            try {
-                const oscillator = audioContext.createOscillator();
-                const gainNode = audioContext.createGain();
-                
-                oscillator.connect(gainNode);
-                gainNode.connect(audioContext.destination);
-                
-                oscillator.frequency.value = frequency;
-                oscillator.type = type;
-                
-                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
-                
-                oscillator.start(audioContext.currentTime);
-                oscillator.stop(audioContext.currentTime + duration);
-            } catch (e) {
-                console.log('音频播放失败:', e);
-            }
-        }
-        
-        // 工具函数
-        function showToast(message, type = 'info', duration = 3000) {
-            const toast = document.createElement('div');
-            toast.className = `toast toast-${type}`;
-            toast.textContent = message;
+
+        let toastTimer;
+        const toast = (msg,type='info') => {
+            const el=dom.resultToast; clearTimeout(toastTimer);
+            el.className='result-toast '+type; el.textContent=msg;
+            void el.offsetWidth; el.classList.add('show');
+            toastTimer=setTimeout(()=>el.classList.remove('show'),2000);
+        };
+        const STORAGE_KEY = 'parts_final';
+        const saveLocal = ()=>{ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({ tableData:STATE.tableData, headers:STATE.headers, fileName:STATE.fileName, totalRows:STATE.totalRows, passedCount:STATE.passedCount, scanLog:STATE.scanLog.slice(-100) })); }catch(e){} };
+        const loadLocal = ()=>{ try{ const d=JSON.parse(localStorage.getItem(STORAGE_KEY)); if(!d||!d.tableData) return false; STATE.tableData=d.tableData; STATE.headers=d.headers||[]; STATE.fileName=d.fileName||''; STATE.totalRows=d.totalRows||d.tableData.length; STATE.passedCount=d.passedCount||0; STATE.scanLog=d.scanLog||[]; recalcPassed(); return true; }catch(e){return false;} };
+        const recalcPassed = ()=> STATE.passedCount = STATE.tableData.filter(r=>r.T==='通过').length;
+
+        const indexToColLetter = i => { let s=''; let t=i; do{ s=String.fromCharCode(65+(t%26))+s; t=Math.floor(t/26)-1; }while(t>=0); return s; };
+        const parseExcel = file => new Promise((resolve,reject)=>{
+            const reader=new FileReader();
+            reader.onload=e=>{ try{ const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'}); const sheet=wb.Sheets[wb.SheetNames[0]]; const json=XLSX.utils.sheet_to_json(sheet,{header:1,defval:''}); if(json.length<2) return reject(new Error('表头+至少一行数据')); const headers=json[0].map(h=>String(h||'').trim()); const rows=[]; for(let i=1;i<json.length;i++){ const rd=json[i]; if(!rd||rd.every(c=>c==='')) continue; const obj={}; headers.forEach((h,idx)=>{ const col=indexToColLetter(idx); obj[col]=String(rd[idx]||'').trim(); }); obj.T=obj.T||''; rows.push(obj); } resolve({headers,rows,fileName:file.name}); }catch(err){reject(err);} };
+            reader.onerror=()=>reject(new Error('读取失败')); reader.readAsArrayBuffer(file);
+        });
+
+        // ====================== 核心优化：严格匹配你的数据规则 ======================
+        const analyzeQR = (text) => {
+            if(!text) return {success:false,error:'内容为空'};
             
-            dom.toastContainer.appendChild(toast);
-            
-            setTimeout(() => {
-                toast.style.animation = 'slideIn 0.3s reverse';
-                setTimeout(() => toast.remove(), 300);
-            }, duration);
-        }
-        
-        function addLog(message, type = 'info') {
-            const logEntry = document.createElement('div');
-            logEntry.className = `log-entry log-${type}`;
-            logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
-            
-            dom.logContainer.prepend(logEntry);
-            
-            // 限制日志数量
-            if (dom.logContainer.children.length > 50) {
-                dom.logContainer.removeChild(dom.logContainer.lastChild);
-            }
-            
-            // 自动滚动到底部
-            dom.logContainer.scrollTop = 0;
-        }
-        
-        // 二维码分析函数 - 根据新需求优化
-        function analyzeQR(text) {
-            if (!text || text.trim() === '') {
-                return { success: false, error: '二维码内容为空' };
-            }
-            
-            // 移除所有空格
+            // 1. 移除所有空格
             const cleanText = text.replace(/\s+/g, '');
+            // 2. 剔除固定前缀：84108（5位）
+            const afterPrefix = cleanText.startsWith('84108') ? cleanText.slice(5) : cleanText;
             
-            // 检查最小长度
-            if (cleanText.length < 20) {
-                return { 
-                    success: false, 
-                    error: `内容长度不足20位 (当前: ${cleanText.length}位)`,
-                    cleanText 
-                };
-            }
+            if(afterPrefix.length < 20) return {success:false,error:`有效内容过短，需≥20位`};
             
-            // 提取各部分
-            let partB, partG, partN;
-            
-            try {
-                // 第6-12位 (索引5-11，因为索引从0开始)
-                partB = cleanText.substring(5, 12);
-                
-                // 第13-19位 (索引12-18)
-                partG = cleanText.substring(12, 19);
-                
-                // 第20位到最后 (索引19到最后)
-                partN = cleanText.substring(19);
-                
-                if (partB.length !== 7 || partG.length !== 7 || partN.length === 0) {
-                    return { 
-                        success: false, 
-                        error: '数据格式不正确',
-                        cleanText,
-                        partB,
-                        partG,
-                        partN
-                    };
-                }
-                
-                return {
-                    success: true,
-                    originalText: text,
-                    cleanText: cleanText,
-                    partB: partB,
-                    partG: partG,
-                    partN: partN
-                };
-            } catch (error) {
-                return { 
-                    success: false, 
-                    error: '数据解析失败: ' + error.message,
-                    cleanText 
-                };
-            }
-        }
-        
-        // 扫描处理函数
-        function processScan(qrText) {
-            if (STATE.currentScanResult === qrText) {
-                return; // 避免重复处理同一二维码
-            }
-            
+            // 3. 精准截取（严格按你的要求）
+            const searchB = afterPrefix.substring(5, 12);   // 前缀后第6-12位 → B列
+            const searchG = afterPrefix.substring(12, 19);  // 前缀后第13-19位 → G列
+            const searchN = afterPrefix.substring(19);     // 前缀后第20位至末尾 → N列
+
+            if(!searchB || !searchG || !searchN) return {success:false,error:'截取内容为空'};
+            return { success:true, searchB, searchG, searchN, raw:text };
+        };
+
+        const processScan = (qrText) => {
+            if(STATE.currentScanResult === qrText && STATE.isScanning) return;
             STATE.currentScanResult = qrText;
-            STATE.scanStats.scans++;
-            dom.scanCount.textContent = STATE.scanStats.scans;
-            
-            addLog(`扫描到: ${qrText}`, 'info');
-            dom.qrData.textContent = qrText;
-            
-            // 分析二维码
-            const analysis = analyzeQR(qrText);
-            
-            if (!analysis.success) {
-                showToast(`❌ ${analysis.error}`, 'error');
-                playBeep(300, 0.2, 'square');
-                
-                // 显示部分信息
-                dom.segments.style.display = 'flex';
-                dom.segmentB.textContent = analysis.partB || '-';
-                dom.segmentG.textContent = analysis.partG || '-';
-                dom.segmentN.textContent = analysis.partN || '-';
-                
-                dom.matchResult.textContent = '❌ 匹配失败: ' + analysis.error;
-                dom.matchResult.className = 'match-status match-fail';
-                dom.matchResult.style.display = 'block';
-                
-                return;
-            }
-            
-            // 显示提取的片段
-            dom.segments.style.display = 'flex';
-            dom.segmentB.textContent = analysis.partB;
-            dom.segmentG.textContent = analysis.partG;
-            dom.segmentN.textContent = analysis.partN;
-            
-            // 查找匹配的行
-            const matches = STATE.tableData.filter(row => {
-                const rowB = String(row.B || '').trim();
-                const rowG = String(row.G || '').trim();
-                const rowN = String(row.N || '').trim();
-                
-                return rowB === analysis.partB;
-            });
-            
-            if (matches.length === 0) {
-                showToast(`⚠️ 未找到B列匹配: ${analysis.partB}`, 'error');
-                playBeep(400, 0.2, 'square');
-                
-                dom.matchResult.textContent = `❌ 未找到B列匹配: ${analysis.partB}`;
-                dom.matchResult.className = 'match-status match-fail';
-                dom.matchResult.style.display = 'block';
-                return;
-            }
-            
-            // 完全匹配检查
-            const fullMatches = matches.filter(row => {
-                const rowB = String(row.B || '').trim();
-                const rowG = String(row.G || '').trim();
-                const rowN = String(row.N || '').trim();
-                
-                return rowB === analysis.partB && 
-                       rowG === analysis.partG && 
-                       rowN === analysis.partN;
-            });
-            
-            if (fullMatches.length === 0) {
-                // 部分匹配检查
-                const partialMatches = matches.filter(row => {
-                    const rowG = String(row.G || '').trim();
-                    const rowN = String(row.N || '').trim();
-                    
-                    return rowG === analysis.partG || rowN === analysis.partN;
-                });
-                
-                if (partialMatches.length > 0) {
-                    showToast(`⚠️ 部分匹配: B=${analysis.partB}`, 'error');
-                    playBeep(450, 0.2, 'sawtooth');
-                    
-                    dom.matchResult.innerHTML = `⚠️ 部分匹配: B=${analysis.partB}<br>检查G/N列数据`;
-                    dom.matchResult.className = 'match-status match-fail';
-                    dom.matchResult.style.display = 'block';
-                } else {
-                    showToast(`❌ 三项均不匹配: B=${analysis.partB}`, 'error');
-                    playBeep(300, 0.3, 'square');
-                    
-                    dom.matchResult.innerHTML = `❌ 完全匹配失败<br>B=${analysis.partB}<br>检查G列和N列数据`;
-                    dom.matchResult.className = 'match-status match-fail';
-                    dom.matchResult.style.display = 'block';
+
+            const res = analyzeQR(qrText);
+            if(!res.success){ toast(res.error,'error'); playErr(); addLog(qrText,false,res.error); resetScanLock(); return; }
+
+            // 三项匹配：B/G/N 同时一致
+            const match = STATE.tableData.find(row => 
+                String(row.B || '').trim() === res.searchB &&
+                String(row.G || '').trim() === res.searchG &&
+                String(row.N || '').trim() === res.searchN
+            );
+
+            if(match){
+                if(match.T !== '通过'){
+                    match.T = '通过';
+                    recalcPassed(); saveLocal(); updateStats(); renderTable();
+                    toast('✅ 盘点通过','success'); playOk();
+                    addLog(qrText,true,`B:${res.searchB} | G:${res.searchG} | N:${res.searchN}`);
+                }else{
+                    toast('ℹ️ 已盘点','info');
                 }
-                return;
+            }else{
+                toast('❌ 三项不匹配','error'); playErr();
+                addLog(qrText,false,`匹配失败`);
             }
             
-            // 三项匹配成功
-            let updatedCount = 0;
-            fullMatches.forEach(row => {
-                if (row.T !== '通过') {
-                    row.T = '通过';
-                    row.lastScanTime = new Date().toLocaleString();
-                    updatedCount++;
-                }
+            resetScanLock();
+        };
+        // 连续扫描：快速解锁，支持极速连续识别
+        const resetScanLock = () => {
+            setTimeout(()=>{ STATE.currentScanResult = null; dom.scannerHint.textContent='将二维码对准框内'; }, 600);
+        };
+        // ========================================================================
+
+        const addLog = (qr,ok,detail) => { 
+            STATE.scanLog.unshift({time:new Date().toLocaleString('zh-CN'),qr:qr.length>30?qr.slice(0,30)+'...':qr,ok,detail});
+            if(STATE.scanLog.length>80) STATE.scanLog.length=80; saveLocal(); renderLog(); 
+        };
+        const updateStats = ()=>{ dom.statTotal.textContent=STATE.totalRows; dom.statPassed.textContent=STATE.passedCount; dom.statRemaining.textContent=Math.max(0,STATE.totalRows-STATE.passedCount); };
+        const renderTable = ()=>{ 
+            if(!STATE.tableData.length){ dom.tableContainer.innerHTML='<div style="padding:30px;text-align:center;color:#999;">暂无数据</div>'; return; }
+            let html='<table><thead><tr><th>#</th><th>B列</th><th>G列</th><th>N列</th><th>T列状态</th></tr></thead><tbody>';
+            STATE.tableData.forEach((r,i)=>{
+                html+=`<tr><td>${i+1}</td><td>${r.B||'-'}</td><td>${r.G||'-'}</td><td>${r.N||'-'}</td><td>${r.T==='通过'?'<span class="badge-pass">通过</span>':'待盘点'}</td></tr>`;
             });
-            
-            if (updatedCount > 0) {
-                STATE.scanStats.passed += updatedCount;
-                dom.passedCount.textContent = STATE.scanStats.passed;
-                
-                showToast(`✅ ${updatedCount} 项标记为通过`, 'success');
-                playBeep(800, 0.1, 'sine');
-                playBeep(1000, 0.1, 'sine');
-                
-                dom.matchResult.textContent = `✅ 匹配成功! ${updatedCount} 项已标记为通过`;
-                dom.matchResult.className = 'match-status match-success';
-                dom.matchResult.style.display = 'block';
-                
-                // 更新表格显示
-                renderTable();
-                // 高亮匹配的行
-                highlightMatchedRows(fullMatches);
-            } else {
-                showToast(`ℹ️ ${analysis.partB} 已通过`, 'info');
-                playBeep(600, 0.1, 'sine');
-                
-                dom.matchResult.textContent = '✅ 已通过，无需重复标记';
-                dom.matchResult.className = 'match-status match-success';
-                dom.matchResult.style.display = 'block';
+            dom.tableContainer.innerHTML=html+'</tbody></table>';
+        };
+        const renderLog = ()=>{ dom.logList.innerHTML=STATE.scanLog.length?STATE.scanLog.map(l=>`<li><span class="log-dot ${l.ok?'ok':'fail'}"></span>${l.time} ${l.detail}</li>`).join(''):'<li style="color:#999;">暂无记录</li>'; };
+        const updateUploadUI = ()=>{ 
+            if(STATE.fileName){ dom.uploadZone.classList.add('has-file'); dom.fileInfo.style.display='flex'; dom.fileName.textContent=STATE.fileName; dom.rowCount.textContent=STATE.totalRows; }
+            else{ dom.uploadZone.classList.remove('has-file'); dom.fileInfo.style.display='none'; }
+        };
+        const refreshUI = ()=>{ updateStats(); renderTable(); renderLog(); updateUploadUI(); };
+
+        // 极速解码核心
+        let barcodeDetector = null;
+        try { if(BarcodeDetector) barcodeDetector = new BarcodeDetector({formats:['qr_code']}); } catch(e){}
+        const decodeFrame = async (video) => {
+            if(video.readyState<2) return null;
+            const w=video.videoWidth,h=video.videoHeight,crop=Math.min(320,w,h);
+            const canvas=document.createElement('canvas'); canvas.width=crop; canvas.height=crop;
+            const ctx=canvas.getContext('2d'); ctx.drawImage(video,(w-crop)/2,(h-crop)/2,crop,crop,0,0,crop,crop);
+            if(barcodeDetector){ try{ const codes=await barcodeDetector.detect(canvas); if(codes.length) return codes[0].rawValue; }catch(e){} }
+            const img=ctx.getImageData(0,0,crop,crop); return jsQR(img.data,crop,crop)?.data||null;
+        };
+
+        // 连续扫描循环（120ms极速识别）
+        const scanLoop = async (now) => {
+            if(!STATE.isScanning) return;
+            if(now - (STATE.lastScan||0) >= 120){
+                STATE.lastScan = now;
+                const code = await decodeFrame(dom.scannerVideo);
+                if(code) processScan(code.trim());
             }
-            
-            // 保存到本地存储
-            saveToLocalStorage();
-        }
-        
-        // 高亮匹配的行
-        function highlightMatchedRows(rows) {
-            const tableRows = dom.tableBody.querySelectorAll('tr');
-            
-            tableRows.forEach(row => {
-                row.classList.remove('highlight');
-            });
-            
-            // 延迟一小段时间后添加高亮效果
-            setTimeout(() => {
-                rows.forEach(matchRow => {
-                    const index = STATE.tableData.indexOf(matchRow);
-                    if (index !== -1 && tableRows[index]) {
-                        tableRows[index].classList.add('highlight');
-                        
-                        // 移除高亮效果
-                        setTimeout(() => {
-                            tableRows[index].classList.remove('highlight');
-                        }, 3000);
-                    }
-                });
-            }, 100);
-        }
-        
-        // 渲染表格
-        function renderTable() {
-            dom.tableBody.innerHTML = '';
-            
-            STATE.tableData.forEach((row, index) => {
-                const tr = document.createElement('tr');
-                
-                tr.innerHTML = `
-                    <td>${index + 1}</td>
-                    <td>${row.B || ''}</td>
-                    <td>${row.G || ''}</td>
-                    <td>${row.N || ''}</td>
-                    <td>
-                        ${row.T === '通过' 
-                            ? '<span class="status-passed">通过</span>' 
-                            : '<span style="color: #999;">-</span>'}
-                    </td>
-                    <td>${row.info || ''}</td>
-                `;
-                
-                dom.tableBody.appendChild(tr);
-            });
-            
-            dom.totalCount.textContent = STATE.tableData.length;
-        }
-        
-        // 解码帧
-        function decodeFrame(video) {
-            if (video.readyState < 2 || video.videoWidth === 0) {
-                return Promise.resolve(null);
-            }
-            
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d', { willReadFrequently: true });
-            
-            // 设置画布尺寸为视频尺寸
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            
-            // 绘制视频帧到画布
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            
-            // 获取图像数据
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            
+            STATE.scanInterval = requestAnimationFrame(scanLoop);
+        };
+
+        // 摄像头启动
+        const startScan = async () => {
+            if(!STATE.tableData.length){ toast('请先上传表格','error'); return; }
             try {
-                // 使用jsQR解码
-                const code = jsQR(imageData.data, canvas.width, canvas.height, {
-                    inversionAttempts: "dontInvert",
-                });
-                
-                return Promise.resolve(code ? code.data : null);
-            } catch (error) {
-                console.error('解码错误:', error);
-                return Promise.resolve(null);
-            }
-        }
-        
-        // 扫描循环
-        function scanLoop() {
-            if (!STATE.isScanning) return;
-            
-            decodeFrame(dom.scannerVideo).then(result => {
-                if (result) {
-                    processScan(result);
-                    
-                    // 短暂暂停以防止重复扫描同一二维码
-                    setTimeout(() => {
-                        if (STATE.isScanning) {
-                            STATE.scanInterval = requestAnimationFrame(scanLoop);
-                        }
-                    }, 500);
-                } else {
-                    STATE.scanInterval = requestAnimationFrame(scanLoop);
-                }
-            }).catch(error => {
-                console.error('扫描错误:', error);
-                STATE.scanInterval = requestAnimationFrame(scanLoop);
-            });
-        }
-        
-        // 开始扫描
-        async function startScanning() {
-            if (STATE.isScanning) {
-                stopScanning();
-                return;
-            }
-            
-            try {
-                STATE.mediaStream = await navigator.mediaDevices.getUserMedia({
-                    video: {
-                        facingMode: 'environment',
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 }
-                    },
-                    audio: false
-                });
-                
-                dom.scannerVideo.srcObject = STATE.mediaStream;
-                dom.scannerVideo.play();
-                
-                STATE.isScanning = true;
-                dom.startIcon.textContent = '⏸️';
-                dom.startText.textContent = '停止扫描';
-                dom.scannerStatus.textContent = '🟢 扫描中...';
-                dom.scannerStatus.style.color = '#28a745';
-                
-                // 等待视频准备就绪
-                dom.scannerVideo.onloadedmetadata = () => {
-                    setTimeout(() => {
-                        STATE.scanInterval = requestAnimationFrame(scanLoop);
-                    }, 500);
-                };
-                
-                addLog('开始扫描', 'success');
-                showToast('开始扫描', 'success');
-                
-            } catch (error) {
-                console.error('摄像头访问错误:', error);
-                showToast('无法访问摄像头: ' + error.message, 'error');
-                addLog('摄像头访问失败: ' + error.message, 'error');
-            }
-        }
-        
+                const stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1280}}});
+                STATE.mediaStream=stream; STATE.videoTrack=stream.getTracks()[0];
+                dom.scannerVideo.srcObject=stream; await dom.scannerVideo.play();
+                STATE.isScanning=true; dom.scannerModal.classList.add('active'); dom.btnScanFab.classList.add('scanning');
+                requestAnimationFrame(scanLoop);
+            }catch(e){ toast('摄像头开启失败','error'); }
+        };
+
         // 停止扫描
-        function stopScanning() {
-            STATE.isScanning = false;
-            
-            if (STATE.scanInterval) {
-                cancelAnimationFrame(STATE.scanInterval);
-                STATE.scanInterval = null;
-            }
-            
-            if (STATE.mediaStream) {
-                STATE.mediaStream.getTracks().forEach(track => track.stop());
-                STATE.mediaStream = null;
-            }
-            
-            dom.scannerVideo.srcObject = null;
-            dom.startIcon.textContent = '▶️';
-            dom.startText.textContent = '开始扫描';
-            dom.scannerStatus.textContent = '摄像头已关闭';
-            dom.scannerStatus.style.color = '#666';
-            
-            addLog('停止扫描', 'info');
-        }
-        
-        // 上传数据文件
-        function uploadDataFile(file) {
-            if (!file) return;
-            
-            const reader = new FileReader();
-            
-            reader.onload = function(e) {
-                try {
-                    const content = e.target.result;
-                    const lines = content.split('\n');
-                    const headers = lines[0].split(',').map(h => h.trim());
-                    
-                    // 查找B、G、N、T列的索引
-                    const bIndex = headers.findIndex(h => h === 'B' || h === 'b');
-                    const gIndex = headers.findIndex(h => h === 'G' || h === 'g');
-                    const nIndex = headers.findIndex(h => h === 'N' || h === 'n');
-                    const tIndex = headers.findIndex(h => h === 'T' || h === 't');
-                    
-                    if (bIndex === -1 || gIndex === -1 || nIndex === -1) {
-                        showToast('CSV文件必须包含B、G、N列', 'error');
-                        addLog('CSV文件缺少必要列', 'error');
-                        return;
-                    }
-                    
-                    // 解析数据
-                    STATE.tableData = [];
-                    
-                    for (let i = 1; i < lines.length; i++) {
-                        if (lines[i].trim() === '') continue;
-                        
-                        const cells = lines[i].split(',').map(c => c.trim());
-                        const row = {
-                            B: cells[bIndex] || '',
-                            G: cells[gIndex] || '',
-                            N: cells[nIndex] || '',
-                            T: tIndex !== -1 ? cells[tIndex] || '' : '',
-                            info: cells.slice(Math.max(bIndex, gIndex, nIndex, tIndex) + 1).join(', ') || ''
-                        };
-                        
-                        STATE.tableData.push(row);
-                    }
-                    
-                    // 统计已通过的项
-                    STATE.scanStats.passed = STATE.tableData.filter(row => row.T === '通过').length;
-                    STATE.scanStats.total = STATE.tableData.length;
-                    
-                    renderTable();
-                    saveToLocalStorage();
-                    
-                    showToast(`✅ 成功加载 ${STATE.tableData.length} 条数据`, 'success');
-                    addLog(`上传数据文件: ${file.name}, 共 ${STATE.tableData.length} 条记录`, 'success');
-                    
-                } catch (error) {
-                    console.error('文件解析错误:', error);
-                    showToast('文件解析失败: ' + error.message, 'error');
-                    addLog('文件解析失败: ' + error.message, 'error');
-                }
-            };
-            
-            reader.onerror = function() {
-                showToast('文件读取失败', 'error');
-                addLog('文件读取失败', 'error');
-            };
-            
-            reader.readAsText(file);
-        }
-        
-        // 导出结果
-        function exportResults() {
-            if (STATE.tableData.length === 0) {
-                showToast('没有数据可导出', 'error');
-                return;
-            }
-            
-            const headers = ['B', 'G', 'N', 'T', '最后扫描时间'];
-            const csvRows = [];
-            
-            // 添加表头
-            csvRows.push(headers.join(','));
-            
-            // 添加数据行
-            STATE.tableData.forEach(row => {
-                const rowData = [
-                    row.B || '',
-                    row.G || '',
-                    row.N || '',
-                    row.T || '',
-                    row.lastScanTime || ''
-                ];
-                csvRows.push(rowData.map(cell => `"${cell}"`).join(','));
-            });
-            
-            const csvString = csvRows.join('\n');
-            const blob = new Blob([csvString], { type: 'text/csv' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            
-            a.href = url;
-            a.download = `扫描结果_${new Date().toISOString().slice(0, 10)}.csv`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
-            
-            showToast(`✅ 已导出 ${STATE.tableData.length} 条记录`, 'success');
-            addLog('导出扫描结果', 'success');
-        }
-        
-        // 保存到本地存储
-        function saveToLocalStorage() {
-            try {
-                const data = {
-                    tableData: STATE.tableData,
-                    scanStats: STATE.scanStats,
-                    timestamp: new Date().toISOString()
-                };
-                localStorage.setItem('qrScannerData', JSON.stringify(data));
-            } catch (e) {
-                console.error('本地存储失败:', e);
-            }
-        }
-        
-        // 从本地存储加载
-        function loadFromLocalStorage() {
-            try {
-                const saved = localStorage.getItem('qrScannerData');
-                if (saved) {
-                    const data = JSON.parse(saved);
-                    STATE.tableData = data.tableData || [];
-                    STATE.scanStats = data.scanStats || { total: 0, passed: 0, scans: 0 };
-                    
-                    // 更新统计显示
-                    dom.totalCount.textContent = STATE.tableData.length;
-                    dom.passedCount.textContent = STATE.scanStats.passed;
-                    dom.scanCount.textContent = STATE.scanStats.scans || 0;
-                    
-                    renderTable();
-                    addLog('从本地存储恢复数据', 'info');
-                }
-            } catch (e) {
-                console.error('本地存储加载失败:', e);
-            }
-        }
-        
-        // 添加测试数据
-        function addTestData() {
-            const testData = [
-                { B: '3020349', G: '5390001', N: 'A2465403215', T: '', info: '示例数据1' },
-                { B: '3020348', G: '5390002', N: 'A2465403216', T: '', info: '示例数据2' },
-                { B: '3020347', G: '5390003', N: 'A2465403217', T: '', info: '示例数据3' },
-                { B: '3020346', G: '5390004', N: 'A2465403218', T: '', info: '示例数据4' },
-                { B: '3020345', G: '5390005', N: 'A2465403219', T: '', info: '示例数据5' },
-                { B: '3020344', G: '5390006', N: 'A2465403220', T: '', info: '示例数据6' },
-                { B: '3020343', G: '5390007', N: 'A2465403221', T: '', info: '示例数据7' },
-                { B: '3020342', G: '5390008', N: 'A2465403222', T: '', info: '示例数据8' },
-                { B: '3020341', G: '5390009', N: 'A2465403223', T: '', info: '示例数据9' },
-                { B: '3020340', G: '5390010', N: 'A2465403224', T: '', info: '示例数据10' }
-            ];
-            
-            STATE.tableData = [...STATE.tableData, ...testData];
-            STATE.scanStats.total = STATE.tableData.length;
-            dom.totalCount.textContent = STATE.tableData.length;
-            
-            renderTable();
-            saveToLocalStorage();
-            
-            showToast(`✅ 添加了 ${testData.length} 条测试数据`, 'success');
-            addLog('添加测试数据', 'success');
-        }
-        
-        // 清除数据
-        function clearData() {
-            if (confirm('确定要清除所有数据吗？此操作不可撤销。')) {
-                STATE.tableData = [];
-                STATE.scanStats = { total: 0, passed: 0, scans: 0 };
-                
-                dom.totalCount.textContent = '0';
-                dom.passedCount.textContent = '0';
-                dom.scanCount.textContent = '0';
-                
-                renderTable();
-                localStorage.removeItem('qrScannerData');
-                
-                showToast('数据已清除', 'info');
-                addLog('清除所有数据', 'info');
-            }
-        }
-        
-        // 事件监听器
-        dom.startBtn.addEventListener('click', startScanning);
-        
-        dom.uploadBtn.addEventListener('click', () => {
-            dom.fileInput.click();
-        });
-        
-        dom.fileInput.addEventListener('change', (e) => {
-            if (e.target.files.length > 0) {
-                uploadDataFile(e.target.files[0]);
-                e.target.value = ''; // 重置文件输入
-            }
-        });
-        
-        dom.exportBtn.addEventListener('click', exportResults);
-        
-        dom.clearBtn.addEventListener('click', clearData);
-        
-        dom.manualAddBtn.addEventListener('click', addTestData);
-        
-        // 页面卸载时停止扫描
-        window.addEventListener('beforeunload', () => {
-            if (STATE.isScanning) {
-                stopScanning();
-            }
-        });
-        
-        // 页面加载时从本地存储恢复数据
-        window.addEventListener('DOMContentLoaded', () => {
-            loadFromLocalStorage();
-            
-            // 添加示例说明
-            addLog('系统初始化完成', 'info');
-            addLog('示例数据格式: "84108 3020349 5390001 A2465403215"', 'info');
-            addLog('B列匹配: 3020349, G列匹配: 5390001, N列匹配: A2465403215', 'info');
-            
-            // 初始化表格
-            if (STATE.tableData.length === 0) {
-                addTestData();
-            }
-        });
-        
-        // 键盘快捷键
-        document.addEventListener('keydown', (e) => {
-            // 空格键切换扫描
-            if (e.code === 'Space' && !e.target.matches('input, textarea')) {
-                e.preventDefault();
-                dom.startBtn.click();
-            }
-            
-            // Ctrl+E 导出
-            if (e.ctrlKey && e.code === 'KeyE') {
-                e.preventDefault();
-                dom.exportBtn.click();
-            }
-            
-            // Ctrl+U 上传
-            if (e.ctrlKey && e.code === 'KeyU') {
-                e.preventDefault();
-                dom.fileInput.click();
-            }
-        });
-        
-        // 显示快捷键提示
-        setTimeout(() => {
-            addLog('快捷键: 空格=开始/停止扫描, Ctrl+E=导出, Ctrl+U=上传', 'info');
-        }, 1000);
-    </script>
+        const stopScan = () => {
+            STATE.isScanning=false; cancelAnimationFrame(STATE.scanInterval);
+            if(STATE.mediaStream) STATE.mediaStream.getTracks().forEach(t=>t.stop());
+            dom.scannerModal.classList.remove('active'); dom.btnScanFab.classList.remove('scanning');
+            STATE.currentScanResult=null;
+        };
+
+        // 拍照扫描
+        const photoScan = async (file) => {
+            const img=new Image(); img.src=URL.createObjectURL(file);
+            await new Promise(r=>img.onload=r);
+            const canvas=document.createElement('canvas'); canvas.width=img.width; canvas.height=img.height;
+            canvas.getContext('2d').drawImage(img,0,0);
+            const code = barcodeDetector ? (await barcodeDetector.detect(canvas))[0]?.rawValue : jsQR(canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data,canvas.width,canvas.height)?.data;
+            if(code) processScan(code); else toast('未识别到二维码','error');
+        };
+
+        // 事件绑定
+        const bind = () => {
+            dom.fileInput.onchange=async e=>{const f=e.target.files[0];if(!f)return;const d=await parseExcel(f);STATE.tableData=d.rows;STATE.headers=d.headers;STATE.fileName=d.fileName;STATE.totalRows=d.rows.length;STATE.passedCount=0;STATE.scanLog=[];saveLocal();refreshUI();toast(`加载 ${d.rows.length} 行数据`,'success');};
+            dom.btnScanFab.onclick=()=>STATE.isScanning?stopScan():startScan();
+            dom.btnScannerClose.onclick=stopScan;
+            dom.btnPhotoScan.onclick=()=>dom.photoInput.click();
+            dom.photoInput.onchange=e=>e.target.files[0]&&photoScan(e.target.files[0]);
+            dom.btnManualSubmit.onclick=()=>{const v=dom.manualQRInput.value.trim();v&&processScan(v);dom.manualQRInput.value='';};
+            dom.btnClearLog.onclick=()=>{STATE.scanLog=[];saveLocal();renderLog();};
+            dom.btnResetAll.onclick=()=>{if(!confirm('确定重置？'))return;localStorage.clear();location.reload();};
+            dom.btnRemoveFile.onclick=()=>{STATE.tableData=[];localStorage.clear();refreshUI();};
+        };
+
+        // 初始化
+        loadLocal() && refreshUI();
+        bind();
+    })();
+</script>
 </body>
 </html>
