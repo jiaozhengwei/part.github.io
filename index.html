@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover, maximum-scale=1.0, minimum-scale=1.0">
-    <title>配件盘点工具 · 锐化连续扫描</title>
+    <title>配件盘点工具 · 终极高清扫描</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <!-- 备用：jsQR 当 BarcodeDetector 不可用时 -->
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <style>
         :root {
@@ -91,19 +90,19 @@
         }
         #scanner-video { width:100%; height:100%; object-fit:cover; display:block; }
         .scanner-hint {
-            position:absolute; bottom:70px; left:50%; transform:translateX(-50%);
+            position:absolute; bottom:80px; left:50%; transform:translateX(-50%);
             background:rgba(0,0,0,0.7); color:#fff; font-size:13px; padding:10px 20px;
             border-radius:20px; z-index:10001; pointer-events:none; white-space: nowrap;
         }
         .scanner-overlay-frame {
             position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
-            width:260px; height:260px; border:3px solid rgba(255,255,255,0.9);
+            width:280px; height:280px; border:3px solid rgba(255,255,255,0.9);
             border-radius:20px; z-index:10000; pointer-events:none;
             box-shadow:0 0 0 2000px rgba(0,0,0,0.6);
         }
         .scanner-controls {
-            position:absolute; bottom:140px; left:50%; transform:translateX(-50%);
-            display:flex; gap:12px; z-index:10002;
+            position:absolute; bottom:150px; left:50%; transform:translateX(-50%);
+            display:flex; gap:15px; z-index:10002;
         }
         .flash-btn {
             width:44px; height:44px; border-radius:50%; background:rgba(255,255,255,0.2);
@@ -172,7 +171,7 @@
     <div class="card">
         <div class="card-header"><span class="card-title">📷 二维码扫描</span></div>
         <div class="scan-fab-container">
-            <button class="scan-fab video-scan" id="btnScanFab" title="连续扫描（清晰锐化）">📹</button>
+            <button class="scan-fab video-scan" id="btnScanFab" title="连续扫描（终极高清）">📹</button>
             <button class="scan-fab photo-scan" id="btnPhotoScan" title="拍照扫描">📸</button>
         </div>
         <div style="text-align:center; font-size:12px; color:#666; margin:6px 0;" id="scanFabLabel">📹 连续 | 📸 拍照</div>
@@ -183,6 +182,7 @@
                 <button class="btn btn-outline btn-sm" id="btnManualSubmit">确认</button>
             </div>
         </div>
+        <div style="margin-top:8px; font-size:11px; color:#999;">💡 点击画面可强制对焦 | 光线暗可开启闪光灯</div>
     </div>
 
     <div class="card">
@@ -265,7 +265,7 @@
         };
 
         // 存储
-        const STORAGE_KEY = 'parts_pro_v2';
+        const STORAGE_KEY = 'parts_ultimate_v2';
         const saveLocal = ()=>{
             try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({
                 tableData:STATE.tableData, headers:STATE.headers, fileName:STATE.fileName,
@@ -363,22 +363,61 @@
         };
         const refreshAllUI = ()=>{ updateStats(); renderTable(); renderLog(); updateUploadUI(); };
 
-        // ========== 扫描器核心 ==========
-        const CROP_SIZE = 280; // 取景框对应裁剪尺寸
-        const SCAN_INTERVAL = 180; // 毫秒
+        // ========== 终极扫描引擎 ==========
+        const CROP_SIZE = 360; // 取景框对应裁剪区域（高像素）
+        const SCAN_INTERVAL = 180;
 
-        // 检测 BarcodeDetector 支持
-        const barcodeDetectorSupported = typeof BarcodeDetector !== 'undefined';
+        // BarcodeDetector 支持检查
         let barcodeDetector = null;
-        if(barcodeDetectorSupported) {
-            try { barcodeDetector = new BarcodeDetector({ formats: ['qr_code'] }); } catch(e) { barcodeDetector = null; }
+        if (typeof BarcodeDetector !== 'undefined') {
+            try { barcodeDetector = new BarcodeDetector({ formats: ['qr_code'] }); } catch(e) {}
         }
 
-        // 锐化卷积核
+        // 自适应二值化（Otsu算法）
+        function otsuThreshold(grayscale) {
+            const histogram = new Array(256).fill(0);
+            for (let i = 0; i < grayscale.length; i++) histogram[grayscale[i]]++;
+            let total = grayscale.length;
+            let sum = 0;
+            for (let i = 0; i < 256; i++) sum += i * histogram[i];
+            let sumB = 0, wB = 0, wF = 0, maxVariance = 0, threshold = 0;
+            for (let i = 0; i < 256; i++) {
+                wB += histogram[i];
+                if (wB === 0) continue;
+                wF = total - wB;
+                if (wF === 0) break;
+                sumB += i * histogram[i];
+                const mB = sumB / wB;
+                const mF = (sum - sumB) / wF;
+                const variance = wB * wF * (mB - mF) * (mB - mF);
+                if (variance > maxVariance) { maxVariance = variance; threshold = i; }
+            }
+            return threshold;
+        }
+
+        function applyAdaptiveThreshold(imageData) {
+            const { data, width, height } = imageData;
+            // 转换为灰度
+            const gray = new Uint8Array(width * height);
+            for (let i = 0; i < data.length; i += 4) {
+                gray[i / 4] = Math.round(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
+            }
+            const thr = otsuThreshold(gray);
+            // 二值化输出
+            const output = new Uint8ClampedArray(data.length);
+            for (let i = 0; i < gray.length; i++) {
+                const val = gray[i] > thr ? 255 : 0;
+                const idx = i * 4;
+                output[idx] = val; output[idx + 1] = val; output[idx + 2] = val; output[idx + 3] = 255;
+            }
+            return new ImageData(output, width, height);
+        }
+
+        // 锐化核（更强）
         function sharpenImageData(imageData) {
             const { data, width, height } = imageData;
             const output = new Uint8ClampedArray(data.length);
-            const kernel = [0, -1, 0, -1, 5, -1, 0, -1, 0]; // 拉普拉斯锐化
+            const kernel = [-1, -1, -1, -1, 9, -1, -1, -1, -1]; // 强锐化
             for (let y = 1; y < height - 1; y++) {
                 for (let x = 1; x < width - 1; x++) {
                     let r = 0, g = 0, b = 0;
@@ -386,9 +425,7 @@
                         for (let kx = -1; kx <= 1; kx++) {
                             const idx = ((y + ky) * width + (x + kx)) * 4;
                             const kVal = kernel[(ky + 1) * 3 + (kx + 1)];
-                            r += data[idx] * kVal;
-                            g += data[idx + 1] * kVal;
-                            b += data[idx + 2] * kVal;
+                            r += data[idx] * kVal; g += data[idx + 1] * kVal; b += data[idx + 2] * kVal;
                         }
                     }
                     const outIdx = (y * width + x) * 4;
@@ -401,9 +438,8 @@
             return new ImageData(output, width, height);
         }
 
-        // 解码一帧
         async function decodeFrame(video) {
-            if (video.readyState < video.HAVE_CURRENT_DATA || video.videoWidth === 0) return;
+            if (video.readyState < video.HAVE_CURRENT_DATA || video.videoWidth === 0) return null;
             const vw = video.videoWidth, vh = video.videoHeight;
             const crop = Math.min(CROP_SIZE, vw, vh);
             const sx = (vw - crop) / 2, sy = (vh - crop) / 2;
@@ -412,23 +448,32 @@
             canvas.width = crop; canvas.height = crop;
             const ctx = canvas.getContext('2d', { willReadFrequently: true });
             ctx.drawImage(video, sx, sy, crop, crop, 0, 0, crop, crop);
-            const imageData = ctx.getImageData(0, 0, crop, crop);
 
-            // 优先使用 BarcodeDetector
+            // 策略1：原生 BarcodeDetector（最快）
             if (barcodeDetector) {
                 try {
                     const codes = await barcodeDetector.detect(canvas);
                     if (codes.length > 0) return codes[0].rawValue;
-                } catch (e) { /* 回退到 jsQR */ }
+                } catch (e) {}
             }
 
-            // 锐化后使用 jsQR
-            const sharpData = sharpenImageData(imageData);
-            const code = jsQR(sharpData.data, crop, crop);
+            // 策略2：锐化 + jsQR
+            const imageData = ctx.getImageData(0, 0, crop, crop);
+            const sharp = sharpenImageData(imageData);
+            let code = jsQR(sharp.data, crop, crop);
+            if (code) return code.data;
+
+            // 策略3：自适应二值化 + jsQR（对模糊/低对比度最有效）
+            const binary = applyAdaptiveThreshold(imageData);
+            code = jsQR(binary.data, crop, crop);
+            if (code) return code.data;
+
+            // 策略4：二值化后再锐化
+            const binarySharp = sharpenImageData(binary);
+            code = jsQR(binarySharp.data, crop, crop);
             return code ? code.data : null;
         }
 
-        // 连续扫描主循环
         let lastDecodeTime = 0;
         async function scanLoop(now) {
             if (!STATE.isScanning) return;
@@ -442,7 +487,7 @@
             STATE.scanInterval = requestAnimationFrame(scanLoop);
         }
 
-        // 启动摄像头
+        // 摄像头启动
         async function startVideoScanner() {
             if (!STATE.tableData.length) { toast('⚠️ 请先上传表格', 'error'); return; }
             if (STATE.isScanning) return;
@@ -450,8 +495,8 @@
                 const stream = await navigator.mediaDevices.getUserMedia({
                     video: {
                         facingMode: 'environment',
-                        width: { ideal: 1920 },
-                        height: { ideal: 1080 },
+                        width: { ideal: 1920, min: 1280 },
+                        height: { ideal: 1080, min: 720 },
                         frameRate: { ideal: 30 }
                     },
                     audio: false
@@ -461,15 +506,14 @@
                 dom.scannerVideo.srcObject = stream;
                 dom.scannerModal.classList.add('active');
                 dom.btnScanFab.classList.add('scanning');
-                dom.scanFabLabel.textContent = '📹 锐化扫描中...';
+                dom.scanFabLabel.textContent = '📹 超清扫描中...';
                 STATE.isScanning = true;
                 STATE.currentScanResult = null;
 
-                // 对焦优化
-                if (STATE.videoTrack) applyFocus(STATE.videoTrack);
-                // 闪光灯按钮
-                initFlashButton(STATE.videoTrack);
-                // 亮度监测
+                if (STATE.videoTrack) {
+                    applyFocus(STATE.videoTrack);
+                    initFlashButton(STATE.videoTrack);
+                }
                 startBrightnessMonitor();
 
                 lastDecodeTime = 0;
@@ -484,7 +528,6 @@
         }
 
         function applyFocus(track) {
-            if (!track) return;
             track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {});
         }
 
@@ -514,7 +557,7 @@
                 let sum = 0;
                 for (let i = 0; i < d.length; i += 4) sum += (d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114);
                 const avg = sum / (d.length / 4);
-                dom.scannerHint.textContent = avg < 80 ? '光线暗，可开闪光灯 💡' : '对准框内，自动识别';
+                dom.scannerHint.textContent = avg < 80 ? '光线暗，请开启闪光灯 💡' : '对准框内，自动识别';
             }, 1500);
         }
 
@@ -532,7 +575,6 @@
             dom.btnFlashToggle.style.display = 'none';
         }
 
-        // 手动对焦触发
         function manualFocusTrigger() {
             if (!STATE.isScanning || !STATE.videoTrack) return;
             STATE.videoTrack.applyConstraints({ advanced: [{ focusMode: 'auto' }] })
@@ -551,17 +593,21 @@
                 const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
                 const ctx = canvas.getContext('2d', { willReadFrequently: true });
                 ctx.drawImage(img, 0, 0, w, h); URL.revokeObjectURL(img.src);
-                const imageData = ctx.getImageData(0, 0, w, h);
 
-                // 尝试原生检测
+                // 尝试 BarcodeDetector
                 if (barcodeDetector) {
                     try {
                         const codes = await barcodeDetector.detect(canvas);
                         if (codes.length > 0) { processScan(codes[0].rawValue.trim()); toast('📸 识别成功', 'success'); playOk(); dom.photoInput.value = ''; return; }
                     } catch (e) {}
                 }
-                // jsQR 尝试
-                const code = jsQR(imageData.data, w, h);
+                // jsQR 策略
+                const imageData = ctx.getImageData(0, 0, w, h);
+                let code = jsQR(imageData.data, w, h);
+                if (!code) {
+                    const binary = applyAdaptiveThreshold(imageData);
+                    code = jsQR(binary.data, w, h);
+                }
                 if (code) {
                     processScan(code.data.trim()); toast('📸 识别成功', 'success'); playOk();
                 } else {
@@ -650,7 +696,7 @@
         // 启动
         if (loadLocal()) refreshAllUI(); else { updateStats(); renderLog(); }
         bindEvents();
-        console.log('🚀 锐化连续扫描版已启动');
+        console.log('🚀 终极高清扫描版已启动');
     })();
 </script>
 </body>
