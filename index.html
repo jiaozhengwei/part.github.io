@@ -185,7 +185,8 @@
     <div id="focusTapArea" style="position:absolute; top:0; left:0; width:100%; height:100%; z-index:10001; background:transparent;"></div>
 </div>
 
-<input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none;">
+<!-- 修复：不使用 display:none，避免浏览器拦截相机 -->
+<input type="file" id="photoInput" accept="image/*" capture="environment" style="position:absolute;opacity:0;width:1px;height:1px;left:-9999px;">
 <div class="result-toast" id="resultToast"></div>
 <div class="bottom-bar">
     <button class="btn btn-outline btn-sm" id="btnExportExcel">📊 导出Excel</button>
@@ -210,9 +211,12 @@
             videoTrack:null,
             scanInterval:null,
             burstConfig: {
-                successDelay: 1500,
-                failDelay: 800
-            }
+                successDelay: 1800,    // 成功后延迟
+                failDelay: 1200,      // 失败后延迟
+                isProcessing: false,   // 处理锁
+                retryDelay: 400        // 重试延迟
+            },
+            burstRetryCount: 0          // 重试计数
         };
 
         const $=id=>document.getElementById(id);
@@ -355,7 +359,7 @@
             if(video.readyState<2||video.videoWidth<1) return null;
             const vw=video.videoWidth, vh=video.videoHeight;
             const crop=Math.min(300,vw,vh), sx=(vw-crop)/2, sy=(vh-crop)/2;
-            const canvas=document.createElement('canvas'); canvas.width=crop; canvas.height=crop;
+            const canvas=document.createElement('canvas'); canvas.width=crop; height=crop;
             const ctx=canvas.getContext('2d',{willReadFrequently:true}); ctx.drawImage(video,sx,sy,crop,crop,0,0,crop,crop);
             if(typeof BarcodeDetector!=='undefined'){ try{ const bd=new BarcodeDetector({formats:['qr_code']}); const codes=await bd.detect(canvas); if(codes.length>0) return codes[0].rawValue; }catch(e){} }
             return tryDecodeImageData(ctx.getImageData(0,0,crop,crop));
@@ -382,9 +386,10 @@
             if(!stream){ toast('❌ 摄像头错误','error'); return; }
             STATE.mediaStream=stream; STATE.videoTrack=stream.getVideoTracks()[0];
             dom.scannerVideo.srcObject=stream; await dom.scannerVideo.play();
-            dom.scannerModal.classList.add('active');
-            STATE.isScanning=true;
+            dom.scannerModal.classList.add('active'); dom.btnScanFab.classList.add('scanning');
+            dom.scanFabLabel.textContent='📹 视频扫描中...'; STATE.isScanning=true;
             if(STATE.videoTrack) STATE.videoTrack.applyConstraints({advanced:[{focusMode:'continuous'}]}).catch(()=>{});
+            lastDecodeTime=0; missCounter=0; STATE.scanInterval=requestAnimationFrame(videoLoop);
         }
 
         function stopVideoScanner(){
@@ -392,61 +397,91 @@
             if(STATE.scanInterval){ cancelAnimationFrame(STATE.scanInterval); STATE.scanInterval=null; }
             if(STATE.mediaStream){ STATE.mediaStream.getTracks().forEach(t=>t.stop()); STATE.mediaStream=null; }
             STATE.videoTrack=null; dom.scannerVideo.srcObject=null;
-            dom.scannerModal.classList.remove('active');
+            dom.scannerModal.classList.remove('active'); dom.btnScanFab.classList.remove('scanning');
+            dom.scanFabLabel.textContent='🔥超清连拍 | 📸拍照 | 📹视频';
         }
 
-        // ====================== 【超清连拍 · 方案二 完整版】 ======================
-        async function startBurstScan(){
-            if(STATE.isBurstScanning){
-                stopBurstScan();
-                return;
-            }
-
+        // ====================== 方案一：超清连拍完整修复 ======================
+        function startBurstScan(){
+            if(STATE.isBurstScanning || STATE.burstConfig.isProcessing) return;
             if(STATE.isScanning) stopVideoScanner();
             
             STATE.isBurstScanning = true;
             dom.btnBurstScan.classList.add('scanning');
-            dom.scanFabLabel.textContent='🔥 超清连拍中 · 自动连续扫描';
-            toast('🔥 超清连拍已启动，自动识别无需操作','success');
-
-            await startVideoScanner();
-            dom.scannerHint.textContent='🔥 连拍模式：自动识别 → 自动继续';
-            runBurstCaptureLoop();
+            dom.scanFabLabel.textContent='🔥 超清连拍中...';
+            toast('🔥 超清连拍已启动，自动连续拍摄','success');
+            triggerBurstCapture();
         }
 
         function stopBurstScan(){
             STATE.isBurstScanning = false;
             if(STATE.burstTimer) clearTimeout(STATE.burstTimer);
-            stopVideoScanner();
             dom.btnBurstScan.classList.remove('scanning');
             dom.scanFabLabel.textContent='🔥超清连拍 | 📸拍照 | 📹视频';
             toast('🛑 超清连拍已停止','info');
         }
 
-        async function runBurstCaptureLoop(){
-            if(!STATE.isBurstScanning) return;
-
-            try {
-                const result = await decodeVideoFrame(dom.scannerVideo);
-                if(result){
-                    const added = addScanResult(result.trim());
-                    if(added){
-                        toast('✅ 连拍成功','success');
-                        playOk();
-                        dom.scannerHint.textContent='✅ 识别成功 · 继续下一张';
+        function triggerBurstCapture(){
+            if(!STATE.isBurstScanning || STATE.burstConfig.isProcessing) {
+                if(STATE.isBurstScanning){
+                    STATE.burstRetryCount++;
+                    if(STATE.burstRetryCount < 3){
+                        STATE.burstTimer = setTimeout(triggerBurstCapture, STATE.burstConfig.retryDelay);
                     }else{
-                        dom.scannerHint.textContent='⚠️ 重复内容 · 继续扫描';
+                        STATE.burstRetryCount = 0;
+                        toast('相机唤起失败，连拍暂停','error');
+                        stopBurstScan();
                     }
-                    STATE.burstTimer = setTimeout(runBurstCaptureLoop, STATE.burstConfig.successDelay);
-                }else{
-                    dom.scannerHint.textContent='🔄 未识别 · 自动重试';
-                    STATE.burstTimer = setTimeout(runBurstCaptureLoop, STATE.burstConfig.failDelay);
                 }
-            }catch(e){
-                STATE.burstTimer = setTimeout(runBurstCaptureLoop, STATE.burstConfig.failDelay);
+                return;
+            }
+            STATE.burstRetryCount = 0;
+            try {
+                dom.photoInput.value = '';
+                setTimeout(() => { dom.photoInput.click(); }, 0);
+            } catch (e) {
+                toast('📷 唤起相机异常，即将重试','error');
+                scheduleNextBurst(STATE.burstConfig.retryDelay);
             }
         }
-        // ========================================================================
+
+        function scheduleNextBurst(delay){
+            if(!STATE.isBurstScanning) return;
+            if(STATE.burstTimer) clearTimeout(STATE.burstTimer);
+            STATE.burstTimer = setTimeout(() => {
+                if(STATE.isBurstScanning) triggerBurstCapture();
+            }, delay);
+        }
+
+        async function handleBurstResult(file){
+            STATE.burstConfig.isProcessing = true;
+            try {
+                const result = await processPhotoFile(file);
+                if(result) {
+                    const added = addScanResult(result.trim());
+                    if(added) {
+                        dom.scannerHint.textContent='🔥 识别成功！等待自动拍摄';
+                        toast('✅ 识别成功，准备下一张','success');
+                        playOk();
+                    } else {
+                        dom.scannerHint.textContent='🔥 重复条码，继续拍摄';
+                        toast('ℹ️ 重复内容，跳过','info');
+                    }
+                    scheduleNextBurst(STATE.burstConfig.successDelay);
+                } else {
+                    dom.scannerHint.textContent='🔥 未识别，自动重拍';
+                    toast('❌ 识别失败，即将重拍','error');
+                    playErr();
+                    scheduleNextBurst(STATE.burstConfig.failDelay);
+                }
+            } catch (e) {
+                toast('⚠️ 解析出错，继续连拍','error');
+                scheduleNextBurst(STATE.burstConfig.failDelay);
+            } finally {
+                STATE.burstConfig.isProcessing = false;
+            }
+        }
+        // ====================================================================
 
         function singlePhotoScan(){ 
             if(STATE.isBurstScanning) stopBurstScan();
@@ -455,15 +490,27 @@
 
         dom.photoInput.addEventListener('change', async (e)=>{
             const file = e.target.files[0];
-            if(!file) return;
-            const result = await processPhotoFile(file);
-            if(result) {
-                const added = addScanResult(result.trim());
-                added ? toast('✅ 扫描成功','success') : toast('ℹ️ 重复','info');
-                playOk();
+            if(!file) {
+                STATE.burstConfig.isProcessing = false;
+                if(STATE.isBurstScanning){
+                    toast('取消拍照，自动重新取景','info');
+                    scheduleNextBurst(STATE.burstConfig.failDelay);
+                }
+                dom.photoInput.value = '';
+                return;
+            }
+            if(STATE.isBurstScanning) {
+                await handleBurstResult(file);
             } else {
-                toast('❌ 未识别','error');
-                playErr();
+                const result = await processPhotoFile(file);
+                if(result) {
+                    const added = addScanResult(result.trim());
+                    added ? toast('✅ 扫描成功','success') : toast('ℹ️ 重复','info');
+                    playOk();
+                } else {
+                    toast('❌ 未识别','error');
+                    playErr();
+                }
             }
             dom.photoInput.value = '';
         });
@@ -516,7 +563,9 @@
         }
 
         function bindEvents(){
-            dom.btnBurstScan.addEventListener('click', startBurstScan);
+            dom.btnBurstScan.addEventListener('click',()=>{
+                STATE.isBurstScanning ? stopBurstScan() : startBurstScan();
+            });
             
             dom.btnPhotoScan.addEventListener('click',()=>{ 
                 if(STATE.isBurstScanning) stopBurstScan(); 
@@ -532,11 +581,7 @@
                 } 
             });
             
-            dom.btnScannerClose.addEventListener('click',()=>{
-                if(STATE.isBurstScanning) stopBurstScan();
-                else stopVideoScanner();
-            });
-
+            dom.btnScannerClose.addEventListener('click',stopVideoScanner);
             dom.btnExportExcel.addEventListener('click',exportExcel);
             dom.btnExportJSON.addEventListener('click',exportJSON);
             dom.btnImport.addEventListener('click',()=>dom.importFileInput.click());
@@ -559,6 +604,17 @@
                 navigator.clipboard.writeText(STATE.scanResults[0].content)
                     .then(()=>toast('已复制','success'))
                     .catch(()=>toast('复制失败','error')); 
+            });
+
+            document.addEventListener('visibilitychange', () => {
+                if(document.hidden){
+                    if(STATE.burstTimer){ clearTimeout(STATE.burstTimer); STATE.burstTimer=null; }
+                }else{
+                    if(STATE.isBurstScanning && !STATE.burstConfig.isProcessing){
+                        triggerBurstCapture();
+                        toast('已恢复自动连拍','info');
+                    }
+                }
             });
         }
 
