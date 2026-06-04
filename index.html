@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -163,7 +163,7 @@
             <input type="text" id="manualQRInput" placeholder="✍️ 手动输入二维码内容...">
             <button class="btn btn-outline btn-sm" id="btnManualSubmit">确认</button>
         </div>
-        <div class="tip-text">💡 推荐使用🔥超清连拍，清晰度最高，自动连续扫描</div>
+        <div class="tip-text">💡 推荐使用🔥超清连拍，自动连续扫描，无需手动确认</div>
     </div>
     <div class="card">
         <div class="card-header">
@@ -209,11 +209,9 @@
             mediaStream:null,
             videoTrack:null,
             scanInterval:null,
-            // 新增：连拍配置
             burstConfig: {
-                successDelay: 1200, // 识别成功后延迟（毫秒）
-                failDelay: 800,     // 识别失败后延迟（毫秒）
-                isProcessing: false // 是否正在处理图片（防抖）
+                successDelay: 1500,
+                failDelay: 800
             }
         };
 
@@ -242,24 +240,21 @@
             try{ const d=JSON.parse(localStorage.getItem(STORAGE_KEY)); if(!d||!d.scanResults) return false; STATE.scanResults=d.scanResults; return true; }catch(e){return false;}
         }
 
-        // 🌟 优化后的解析函数：移除严格校验，仅按长度分割字段
         function parseContent(raw){
-            const clean = raw.replace(/\s/g, '');   // 去除所有空格
-            if(clean.length < 20) return null;     // 总长度不足20位时无法分割，返回null
+            const clean = raw.replace(/\s/g, '');
+            if(clean.length < 20) return null;
             const dealerCode = clean.substring(0,5);
             const dealerClaimNo = clean.substring(5,12);
             const damageCode = clean.substring(12,19);
             const partNumber = clean.substring(19);
-            // 无论内容是什么，都返回分割后的四个字段
             return { dealerCode, dealerClaimNo, damageCode, partNumber };
         }
 
         function addScanResult(content){
-            // 去重：2秒内相同内容不重复添加
             const last = STATE.scanResults[0];
             if(last && last.content===content && Date.now()-new Date(last.time).getTime()<2000) return false;
 
-            const parsed = parseContent(content);   // 现在绝大多数情况都会返回对象
+            const parsed = parseContent(content);
             STATE.scanResults.unshift({
                 id: Date.now(),
                 time: new Date().toISOString(),
@@ -284,7 +279,6 @@
             dom.resultList.innerHTML = STATE.scanResults.map((r,idx)=> {
                 const raw = escapeHtml(r.content);
                 let fieldsHtml = '';
-                // 只要parsed存在就显示字段徽章（即使个别字段为空字符串）
                 if(r.parsed){
                     const p = r.parsed;
                     fieldsHtml = `
@@ -294,9 +288,6 @@
                         <span class="field-badge"><span class="field-label">Damage code:</span> ${escapeHtml(p.damageCode)}</span>
                         <span class="field-badge"><span class="field-label">Part number:</span> ${escapeHtml(p.partNumber)}</span>
                     </div>`;
-                } else {
-                    // 理论上不会进入这里，因为长度不足20时parseContent返回null，但已过滤
-                    fieldsHtml = '<div class="result-fields"><span class="field-badge" style="background:#fff3e0;color:#e65100;">⚠️ 格式不完整</span></div>';
                 }
                 return `<li data-id="${r.id}">
                     <div class="result-main">
@@ -330,7 +321,6 @@
         window._copyItem = (c)=> navigator.clipboard.writeText(c).then(()=>toast('已复制','success')).catch(()=>toast('复制失败','error'));
         window._removeItem = (id)=> { removeScanResult(id); toast('已删除','info'); };
 
-        // 解码（与之前相同）
         function tryDecodeImageData(imageData){
             let code = jsQR(imageData.data, imageData.width, imageData.height);
             if(code) return code.data;
@@ -385,17 +375,16 @@
         }
 
         async function startVideoScanner(){
-            if(STATE.isScanning||STATE.isBurstScanning) return;
+            if(STATE.isScanning) return;
             const constraints=[{video:{facingMode:'environment',width:{ideal:1920},height:{ideal:1080}}},{video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}}}];
             let stream=null;
             for(let c of constraints){ try{ stream=await navigator.mediaDevices.getUserMedia({...c,audio:false}); break; }catch(e){} }
             if(!stream){ toast('❌ 摄像头错误','error'); return; }
             STATE.mediaStream=stream; STATE.videoTrack=stream.getVideoTracks()[0];
             dom.scannerVideo.srcObject=stream; await dom.scannerVideo.play();
-            dom.scannerModal.classList.add('active'); dom.btnScanFab.classList.add('scanning');
-            dom.scanFabLabel.textContent='📹 视频扫描中...'; STATE.isScanning=true;
+            dom.scannerModal.classList.add('active');
+            STATE.isScanning=true;
             if(STATE.videoTrack) STATE.videoTrack.applyConstraints({advanced:[{focusMode:'continuous'}]}).catch(()=>{});
-            lastDecodeTime=0; missCounter=0; STATE.scanInterval=requestAnimationFrame(videoLoop);
         }
 
         function stopVideoScanner(){
@@ -403,133 +392,80 @@
             if(STATE.scanInterval){ cancelAnimationFrame(STATE.scanInterval); STATE.scanInterval=null; }
             if(STATE.mediaStream){ STATE.mediaStream.getTracks().forEach(t=>t.stop()); STATE.mediaStream=null; }
             STATE.videoTrack=null; dom.scannerVideo.srcObject=null;
-            dom.scannerModal.classList.remove('active'); dom.btnScanFab.classList.remove('scanning');
-            dom.scanFabLabel.textContent='🔥超清连拍 | 📸拍照 | 📹视频';
+            dom.scannerModal.classList.remove('active');
         }
 
-        // ========== 核心优化：重构超清连拍逻辑 ==========
-        function startBurstScan(){
-            if(STATE.isBurstScanning || STATE.burstConfig.isProcessing) return;
+        // ====================== 【超清连拍 · 方案二 完整版】 ======================
+        async function startBurstScan(){
+            if(STATE.isBurstScanning){
+                stopBurstScan();
+                return;
+            }
+
+            if(STATE.isScanning) stopVideoScanner();
             
             STATE.isBurstScanning = true;
             dom.btnBurstScan.classList.add('scanning');
-            dom.scanFabLabel.textContent='🔥 超清连拍中...';
-            toast('🔥 超清连拍已启动，点击按钮停止','info');
-            
-            // 立即启动第一次拍摄
-            triggerBurstCapture();
+            dom.scanFabLabel.textContent='🔥 超清连拍中 · 自动连续扫描';
+            toast('🔥 超清连拍已启动，自动识别无需操作','success');
+
+            await startVideoScanner();
+            dom.scannerHint.textContent='🔥 连拍模式：自动识别 → 自动继续';
+            runBurstCaptureLoop();
         }
 
         function stopBurstScan(){
             STATE.isBurstScanning = false;
-            if(STATE.burstTimer) {
-                clearTimeout(STATE.burstTimer);
-                STATE.burstTimer = null;
-            }
+            if(STATE.burstTimer) clearTimeout(STATE.burstTimer);
+            stopVideoScanner();
             dom.btnBurstScan.classList.remove('scanning');
             dom.scanFabLabel.textContent='🔥超清连拍 | 📸拍照 | 📹视频';
             toast('🛑 超清连拍已停止','info');
         }
 
-        // 触发单次连拍拍摄
-        function triggerBurstCapture(){
-            // 非连拍状态或正在处理中，不触发
-            if(!STATE.isBurstScanning || STATE.burstConfig.isProcessing) return;
-            
-            try {
-                // 重置input值，确保能重复触发change事件
-                dom.photoInput.value = '';
-                dom.photoInput.click();
-            } catch (e) {
-                toast('📷 拍摄触发失败','error');
-                // 失败后重试
-                if(STATE.isBurstScanning) {
-                    STATE.burstTimer = setTimeout(triggerBurstCapture, 500);
-                }
-            }
-        }
-
-        // 处理连拍结果并安排下一次拍摄
-        async function handleBurstResult(file){
-            STATE.burstConfig.isProcessing = true;
-            
-            try {
-                const result = await processPhotoFile(file);
-                
-                if(result) {
-                    const added = addScanResult(result.trim());
-                    if(added) {
-                        dom.scannerHint.textContent='🔥 识别成功！继续扫描...';
-                        toast('✅ 扫描成功','success');
-                        playOk();
-                    } else {
-                        dom.scannerHint.textContent='🔥 重复内容，继续扫描...';
-                        toast('ℹ️ 重复扫描，跳过','info');
-                    }
-                    // 成功后延迟再拍摄
-                    scheduleNextBurst(STATE.burstConfig.successDelay);
-                } else {
-                    dom.scannerHint.textContent='🔥 未识别，继续拍摄...';
-                    toast('❌ 未识别，继续拍摄','error');
-                    playErr();
-                    // 失败后缩短延迟，快速重试
-                    scheduleNextBurst(STATE.burstConfig.failDelay);
-                }
-            } catch (e) {
-                toast('⚠️ 处理失败，继续拍摄','error');
-                scheduleNextBurst(STATE.burstConfig.failDelay);
-            } finally {
-                STATE.burstConfig.isProcessing = false;
-            }
-        }
-
-        // 安排下一次连拍
-        function scheduleNextBurst(delay){
+        async function runBurstCaptureLoop(){
             if(!STATE.isBurstScanning) return;
-            
-            if(STATE.burstTimer) clearTimeout(STATE.burstTimer);
-            STATE.burstTimer = setTimeout(() => {
-                triggerBurstCapture();
-            }, delay);
+
+            try {
+                const result = await decodeVideoFrame(dom.scannerVideo);
+                if(result){
+                    const added = addScanResult(result.trim());
+                    if(added){
+                        toast('✅ 连拍成功','success');
+                        playOk();
+                        dom.scannerHint.textContent='✅ 识别成功 · 继续下一张';
+                    }else{
+                        dom.scannerHint.textContent='⚠️ 重复内容 · 继续扫描';
+                    }
+                    STATE.burstTimer = setTimeout(runBurstCaptureLoop, STATE.burstConfig.successDelay);
+                }else{
+                    dom.scannerHint.textContent='🔄 未识别 · 自动重试';
+                    STATE.burstTimer = setTimeout(runBurstCaptureLoop, STATE.burstConfig.failDelay);
+                }
+            }catch(e){
+                STATE.burstTimer = setTimeout(runBurstCaptureLoop, STATE.burstConfig.failDelay);
+            }
         }
+        // ========================================================================
 
         function singlePhotoScan(){ 
             if(STATE.isBurstScanning) stopBurstScan();
             dom.photoInput.click(); 
         }
 
-        // ========== 重构photoInput事件处理 ==========
         dom.photoInput.addEventListener('change', async (e)=>{
             const file = e.target.files[0];
-            if(!file) {
-                STATE.burstConfig.isProcessing = false;
-                return;
-            }
-
-            // 判断是否是连拍模式
-            if(STATE.isBurstScanning) {
-                await handleBurstResult(file);
+            if(!file) return;
+            const result = await processPhotoFile(file);
+            if(result) {
+                const added = addScanResult(result.trim());
+                added ? toast('✅ 扫描成功','success') : toast('ℹ️ 重复','info');
+                playOk();
             } else {
-                // 普通拍照模式
-                const result = await processPhotoFile(file);
-                if(result) {
-                    const added = addScanResult(result.trim());
-                    if(added) {
-                        toast('✅ 扫描成功','success');
-                        playOk();
-                    } else {
-                        toast('ℹ️ 重复扫描','info');
-                    }
-                } else {
-                    toast('❌ 未识别','error');
-                    playErr();
-                }
+                toast('❌ 未识别','error');
+                playErr();
             }
-
-            // 重置input，避免重复选择同一文件不触发change
-            setTimeout(() => {
-                dom.photoInput.value = '';
-            }, 100);
+            dom.photoInput.value = '';
         });
 
         dom.btnManualSubmit.addEventListener('click',()=>{
@@ -580,15 +516,7 @@
         }
 
         function bindEvents(){
-            // 重构连拍按钮点击逻辑：切换启停
-            dom.btnBurstScan.addEventListener('click',()=>{
-                if(STATE.isBurstScanning) {
-                    stopBurstScan();
-                } else {
-                    if(STATE.isScanning) stopVideoScanner();
-                    startBurstScan();
-                }
-            });
+            dom.btnBurstScan.addEventListener('click', startBurstScan);
             
             dom.btnPhotoScan.addEventListener('click',()=>{ 
                 if(STATE.isBurstScanning) stopBurstScan(); 
@@ -604,7 +532,11 @@
                 } 
             });
             
-            dom.btnScannerClose.addEventListener('click',stopVideoScanner);
+            dom.btnScannerClose.addEventListener('click',()=>{
+                if(STATE.isBurstScanning) stopBurstScan();
+                else stopVideoScanner();
+            });
+
             dom.btnExportExcel.addEventListener('click',exportExcel);
             dom.btnExportJSON.addEventListener('click',exportJSON);
             dom.btnImport.addEventListener('click',()=>dom.importFileInput.click());
@@ -627,18 +559,6 @@
                 navigator.clipboard.writeText(STATE.scanResults[0].content)
                     .then(()=>toast('已复制','success'))
                     .catch(()=>toast('复制失败','error')); 
-            });
-            window.addEventListener('beforeunload',()=>{ 
-                if(STATE.scanResults.length) saveLocal(); 
-            });
-
-            // 防止页面隐藏时继续连拍（优化性能）
-            document.addEventListener('visibilitychange', () => {
-                if(document.hidden && STATE.isBurstScanning) {
-                    if(STATE.burstTimer) clearTimeout(STATE.burstTimer);
-                } else if(!document.hidden && STATE.isBurstScanning) {
-                    triggerBurstCapture();
-                }
             });
         }
 
