@@ -2,375 +2,785 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover, maximum-scale=1.0, minimum-scale=1.0">
-    <title>配件盘点工具 · 最终稳定版</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>配件盘点助手 - 云端扫码盘点</title>
+    <!-- 引入需要的库 -->
+    <!-- Firebase SDK (云端存储) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <!-- 扫码库 html5-qrcode，优化手机摄像头调用 -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <!-- SheetJS 导出Excel -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
     <style>
-        :root {
-            --primary: #1a73e8; --success: #0d904f; --danger: #d93025; --warning: #e6a817;
-            --bg: #f5f6f8; --card: #fff; --text: #202124; --border: #e0e0e0;
-            --shadow: 0 2px 8px rgba(0,0,0,0.08); --radius: 14px;
-            --safe-bottom: env(safe-area-inset-bottom, 16px);
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
         }
-        * { margin:0; padding:0; box-sizing:border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding-bottom: calc(80px + var(--safe-bottom)); -webkit-tap-highlight-color: transparent; line-height: 1.5; user-select: none; }
-        .app-header { background: var(--card); padding:12px 16px; position:sticky; top:0; z-index:100; box-shadow:var(--shadow); display:flex; align-items:center; justify-content:space-between; }
-        .logo-area { display:flex; align-items:center; gap:10px; }
-        .logo-icon { width:38px; height:38px; border-radius:10px; background: linear-gradient(135deg, #1a73e8, #4a9af5); display:flex; align-items:center; justify-content:center; font-size:20px; color:#fff; }
-        .app-header h1 { font-size:18px; font-weight:700; }
-        .main-content { padding:12px 14px; display:flex; flex-direction:column; gap:12px; max-width:600px; margin:0 auto; }
-        .card { background:var(--card); border-radius:var(--radius); padding:16px; box-shadow:var(--shadow); }
-        .card-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
-        .card-title { font-size:15px; font-weight:600; display:flex; align-items:center; gap:7px; }
-        .upload-zone { border:2px dashed #c5cae9; border-radius:10px; padding:22px; text-align:center; background:#fafbfd; position:relative; cursor:pointer; }
-        .upload-zone.has-file { border-color:var(--success); background:#e6f4ea; }
-        .upload-zone input[type="file"] { position:absolute; inset:0; opacity:0; cursor:pointer; }
-        .file-info { display:flex; align-items:center; gap:8px; margin-top:8px; font-size:13px; color:var(--success); }
-        .stats-row { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
-        .stat-item { background:var(--card); border-radius:10px; padding:14px 10px; text-align:center; box-shadow:var(--shadow); }
-        .stat-value { font-size:28px; font-weight:700; }
-        .stat-value.total { color:var(--primary); } .stat-value.passed { color:var(--success); } .stat-value.remaining { color:var(--warning); }
-        .btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; border:none; border-radius:25px; padding:13px 22px; font-size:15px; font-weight:600; cursor:pointer; transition:0.2s; min-height:46px; background:var(--primary); color:#fff; box-shadow:0 4px 14px rgba(26,115,232,0.3); }
-        .btn:active { transform:scale(0.95); } .btn-outline { background:#fff; color:var(--primary); border:1.5px solid var(--primary); box-shadow:none; } .btn-sm { padding:8px 14px; font-size:13px; min-height:34px; border-radius:20px; }
-        .scan-fab-container { display:flex; justify-content:center; gap:16px; padding:8px 0; }
-        .scan-fab { width:90px; height:90px; border-radius:50%; border:none; font-size:36px; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 8px 28px rgba(26,115,232,0.4); transition:0.2s; }
-        .scan-fab.video-scan { background:linear-gradient(135deg, #1a73e8, #4a9af5); color:#fff; } .scan-fab.photo-scan { background:linear-gradient(135deg, #0d904f, #2ecc71); color:#fff; }
-        .scan-fab.scanning { background:linear-gradient(135deg, #d93025, #f06050) !important; animation:pulse-scan 1.5s infinite; }
-        @keyframes pulse-scan { 0%,100%{ box-shadow:0 8px 28px rgba(217,48,37,0.4); } 50%{ box-shadow:0 8px 40px rgba(217,48,37,0.7),0 0 0 20px rgba(217,48,37,0.08); } }
-        .scanner-modal { position:fixed; inset:0; z-index:9999; background:#000; display:none; flex-direction:column; align-items:center; justify-content:center; }
-        .scanner-modal.active { display:flex; }
-        .scanner-close { position:absolute; top:16px; right:16px; z-index:10002; width:40px; height:40px; border-radius:50%; background:rgba(255,255,255,0.25); border:none; color:#fff; font-size:22px; cursor:pointer; }
-        #scanner-video { width:100%; height:100%; object-fit:cover; display:block; }
-        .scanner-info { position:absolute; top:16px; left:16px; z-index:10002; background:rgba(0,0,0,0.6); color:#fff; font-size:12px; padding:6px 12px; border-radius:8px; }
-        .scanner-hint { position:absolute; bottom:100px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.8); color:#ffcc00; font-size:14px; padding:10px 20px; border-radius:20px; z-index:10001; pointer-events:none; white-space:nowrap; font-weight:bold; }
-        .scanner-overlay-frame { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:280px; height:280px; border:3px solid rgba(255,255,255,0.9); border-radius:20px; z-index:10000; pointer-events:none; box-shadow:0 0 0 2000px rgba(0,0,0,0.6); }
-        .scanner-controls { position:absolute; bottom:180px; left:50%; transform:translateX(-50%); display:flex; gap:12px; z-index:10002; }
-        .flash-btn, .focus-btn { width:44px; height:44px; border-radius:50%; background:rgba(255,255,255,0.25); border:none; color:#fff; font-size:22px; cursor:pointer; display:none; align-items:center; justify-content:center; }
-        .focus-slider-container { display:none; align-items:center; gap:8px; background:rgba(0,0,0,0.5); padding:6px 12px; border-radius:20px; }
-        .focus-slider-container input[type=range] { width:100px; } .focus-slider-label { color:#fff; font-size:11px; }
-        .result-toast { position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:10003; padding:14px 24px; border-radius:25px; font-weight:600; font-size:13px; opacity:0; transition:0.35s; max-width:90vw; text-align:center; }
-        .result-toast.show { opacity:1; top:28px; } .result-toast.success { background:#0d904f; color:#fff; } .result-toast.error { background:#d93025; color:#fff; } .result-toast.info { background:#1a73e8; color:#fff; }
-        .table-container { overflow:auto; max-height:350px; border-radius:10px; border:1px solid var(--border); background:#fff; }
-        .table-container table { border-collapse:collapse; min-width:700px; font-size:11px; } .table-container th, .table-container td { padding:8px 6px; border-bottom:1px solid #eee; text-align:center; } .table-container th { background:#f8f9fb; position:sticky; top:0; }
-        .badge-pass { display:inline-block; padding:3px 10px; border-radius:12px; background:#0d904f; color:#fff; font-size:11px; }
-        .log-list { list-style:none; max-height:200px; overflow-y:auto; font-size:11px; } .log-list li { padding:8px; border-bottom:1px solid #f0f0f0; display:flex; gap:8px; align-items:center; } .log-dot { width:8px; height:8px; border-radius:50%; } .log-dot.ok { background:var(--success); } .log-dot.fail { background:var(--danger); }
-        .bottom-bar { position:fixed; bottom:0; left:0; right:0; background:var(--card); border-top:1px solid var(--border); padding:10px 14px calc(10px + var(--safe-bottom)); display:flex; gap:8px; z-index:90; } .bottom-bar .btn { flex:1; }
+
+        body {
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', sans-serif;
+            background: #f1f5f9;
+            padding: 16px 12px 24px 12px;
+            color: #0f172a;
+        }
+
+        /* 整体容器 */
+        .app-container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        /* 头部 */
+        .header {
+            text-align: center;
+            margin-bottom: 18px;
+        }
+        .header h1 {
+            font-size: 1.8rem;
+            font-weight: 600;
+            background: linear-gradient(135deg, #1e3c72, #2b4c7c);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+            letter-spacing: -0.3px;
+        }
+        .header p {
+            color: #475569;
+            font-size: 0.85rem;
+            margin-top: 6px;
+        }
+
+        /* 摄像头卡片区域 */
+        .scanner-card {
+            background: white;
+            border-radius: 28px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+            padding: 16px;
+            margin-bottom: 20px;
+            transition: all 0.2s;
+        }
+        .scanner-title {
+            font-weight: 600;
+            font-size: 1rem;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #1e293b;
+        }
+        .scanner-title span {
+            background: #eef2ff;
+            padding: 4px 10px;
+            border-radius: 40px;
+            font-size: 0.75rem;
+            color: #2563eb;
+        }
+        #qr-reader {
+            width: 100%;
+            border-radius: 20px;
+            overflow: hidden;
+            background: #000;
+        }
+        #qr-reader video {
+            border-radius: 20px;
+            width: 100%;
+            object-fit: cover;
+        }
+        .scanner-controls {
+            display: flex;
+            gap: 12px;
+            margin-top: 14px;
+            justify-content: center;
+        }
+        .btn-icon {
+            background: #f1f5f9;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 48px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: #334155;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .btn-icon:active {
+            transform: scale(0.96);
+            background: #e2e8f0;
+        }
+        .btn-primary {
+            background: #2563eb;
+            color: white;
+            box-shadow: 0 2px 6px rgba(37,99,235,0.2);
+        }
+        .btn-primary:active {
+            background: #1d4ed8;
+        }
+        .btn-outline {
+            border: 1px solid #cbd5e1;
+            background: white;
+        }
+
+        /* 手动输入辅助 */
+        .manual-section {
+            background: #f8fafc;
+            border-radius: 20px;
+            padding: 12px 14px;
+            margin-top: 12px;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        .manual-section input {
+            flex: 1;
+            border: 1px solid #cbd5e1;
+            border-radius: 40px;
+            padding: 10px 14px;
+            font-size: 0.85rem;
+            background: white;
+            font-family: monospace;
+        }
+        .manual-section button {
+            background: #3b82f6;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 40px;
+            color: white;
+            font-weight: 500;
+            cursor: pointer;
+        }
+
+        /* 统计栏 */
+        .stats-bar {
+            display: flex;
+            justify-content: space-between;
+            background: white;
+            padding: 12px 18px;
+            border-radius: 60px;
+            margin-bottom: 18px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+            align-items: baseline;
+        }
+        .stats-count {
+            font-weight: 700;
+            font-size: 1.3rem;
+            color: #0f172a;
+        }
+        .stats-label {
+            font-size: 0.75rem;
+            color: #5b6e8c;
+        }
+        .export-btn {
+            background: #10b981;
+            color: white;
+            border: none;
+            padding: 6px 16px;
+            border-radius: 40px;
+            font-weight: 500;
+            font-size: 0.8rem;
+        }
+
+        /* 盘点清单列表 */
+        .list-container {
+            background: white;
+            border-radius: 28px;
+            padding: 12px 8px 20px 8px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+        }
+        .list-header {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 12px;
+            border-bottom: 1.5px solid #eef2ff;
+            font-weight: 600;
+            color: #334155;
+            font-size: 0.85rem;
+        }
+        .list-items {
+            max-height: 380px;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        .inventory-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 10px;
+            border-bottom: 1px solid #f0f2f5;
+            font-size: 0.8rem;
+            transition: background 0.1s;
+        }
+        .item-code {
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 0.75rem;
+            background: #f1f5f9;
+            padding: 4px 8px;
+            border-radius: 12px;
+            word-break: break-all;
+            max-width: 55%;
+            color: #0c4e6e;
+            font-weight: 500;
+        }
+        .item-info {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 4px;
+        }
+        .item-time {
+            font-size: 0.7rem;
+            color: #6c86a3;
+        }
+        .item-status {
+            background: #dcfce7;
+            color: #15803d;
+            padding: 2px 8px;
+            border-radius: 40px;
+            font-size: 0.7rem;
+            font-weight: 500;
+        }
+        .delete-item {
+            background: transparent;
+            border: none;
+            font-size: 1.3rem;
+            color: #94a3b8;
+            cursor: pointer;
+            padding: 0 8px;
+            margin-left: 8px;
+        }
+        .empty-list {
+            text-align: center;
+            padding: 40px 20px;
+            color: #94a3b8;
+            font-size: 0.9rem;
+        }
+        .clear-all {
+            margin-top: 12px;
+            display: flex;
+            justify-content: flex-end;
+        }
+        .btn-clear {
+            background: #fee2e2;
+            border: none;
+            padding: 8px 18px;
+            border-radius: 40px;
+            color: #b91c1c;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+        .toast-msg {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1e293bc9;
+            backdrop-filter: blur(12px);
+            color: white;
+            padding: 8px 20px;
+            border-radius: 60px;
+            font-size: 0.85rem;
+            z-index: 1000;
+            pointer-events: none;
+            transition: opacity 0.2s;
+            white-space: nowrap;
+        }
+        footer {
+            text-align: center;
+            font-size: 0.7rem;
+            color: #6c86a3;
+            margin-top: 10px;
+        }
+        button {
+            cursor: pointer;
+        }
+        @media (max-width: 500px) {
+            body {
+                padding: 12px 10px 20px 10px;
+            }
+            .item-code {
+                max-width: 50%;
+                font-size: 0.7rem;
+            }
+        }
     </style>
 </head>
 <body>
-<header class="app-header"><div class="logo-area"><div class="logo-icon">📦</div><h1>配件盘点工具</h1></div><div><button class="icon-btn" id="btnCloudInfo" style="background:none;border:none;font-size:18px;">☁️</button><button class="icon-btn" id="btnRefreshStats" style="background:none;border:none;font-size:18px;">🔄</button></div></header>
+<div class="app-container">
+    <div class="header">
+        <h1>📦 配件盘点工具</h1>
+        <p>扫描二维码 · 确认在库 · 云端同步</p>
+    </div>
 
-<div class="main-content">
-    <div class="card"><div class="card-header"><span class="card-title">📋 盘点表格</span><span style="font-size:11px;color:#666;" id="uploadStatus">请上传Excel</span></div><div class="upload-zone" id="uploadZone"><span>📁 点击上传 Excel 文件</span><input type="file" id="fileInput" accept=".xlsx,.xls"></div><div class="file-info" id="fileInfo" style="display:none;">✅ <span id="fileName"></span>（<span id="rowCount"></span>行）<button id="btnRemoveFile" style="margin-left:auto; background:none; border:none; color:red;">✕</button></div></div>
-
-    <div class="stats-row"><div class="stat-item"><div class="stat-value total" id="statTotal">0</div><div style="font-size:11px;">总数</div></div><div class="stat-item"><div class="stat-value passed" id="statPassed">0</div><div style="font-size:11px;">通过</div></div><div class="stat-item"><div class="stat-value remaining" id="statRemaining">0</div><div style="font-size:11px;">待盘点</div></div></div>
-
-    <div class="card"><div class="card-header"><span class="card-title">📷 二维码扫描</span></div>
-        <div class="scan-fab-container"><button class="scan-fab video-scan" id="btnScanFab">📹</button><button class="scan-fab photo-scan" id="btnPhotoScan">📸</button></div>
-        <div style="text-align:center; font-size:12px; color:#666; margin:6px 0;" id="scanFabLabel">📹 连续 | 📸 拍照</div>
-        <div style="margin-top:8px;"><div style="font-size:11px;color:#666;">✍️ 手动输入（可粘贴示例数据）</div>
-            <div style="display:flex; gap:8px;"><input type="text" id="manualQRInput" placeholder="粘贴二维码内容..." style="flex:1; border:1px solid #ccc; border-radius:20px; padding:10px;"><button class="btn btn-outline btn-sm" id="btnManualSubmit">确认</button></div>
+    <!-- 扫描模块 -->
+    <div class="scanner-card">
+        <div class="scanner-title">
+            📷 扫描确认配件 <span>自动对焦</span>
+        </div>
+        <div id="qr-reader"></div>
+        <div class="scanner-controls">
+            <button id="switchCameraBtn" class="btn-icon">🔄 切换摄像头</button>
+            <button id="restartScanBtn" class="btn-icon">⟳ 重启扫描</button>
+        </div>
+        <!-- 手动输入备用，提升体验 -->
+        <div class="manual-section">
+            <input type="text" id="manualCodeInput" placeholder="或手动输入/粘贴配件码" autocomplete="off">
+            <button id="manualAddBtn">➕ 确认在库</button>
+        </div>
+        <div style="font-size: 0.7rem; color: #5b6e8c; margin-top: 8px; text-align: center;">
+            提示：扫描后自动记录「在库」状态，重复扫描会更新时间
         </div>
     </div>
 
-    <div class="card"><div class="card-header"><span class="card-title">📝 表格预览</span></div><div class="table-container" id="tableContainer"><div style="padding:30px;text-align:center;color:#999;">暂无数据</div></div></div>
-    <div class="card"><div class="card-header"><span class="card-title">📜 扫描日志</span><button class="btn btn-outline btn-sm" id="btnClearLog">清空</button></div><ul class="log-list" id="logList"><li style="color:#999;">暂无记录</li></ul></div>
-</div>
-
-<div class="scanner-modal" id="scannerModal">
-    <button class="scanner-close" id="btnScannerClose">✕</button>
-    <video id="scanner-video" autoplay playsinline muted></video>
-    <div class="scanner-info" id="scannerInfo"><span id="resolutionLabel">--</span></div>
-    <div class="scanner-overlay-frame"></div>
-    <div class="scanner-hint" id="scannerHint">将二维码对准框内</div>
-    <div id="focusTapArea" style="position:absolute; top:0; left:0; width:100%; height:100%; z-index:10001; background:transparent;"></div>
-    <div class="scanner-controls">
-        <button class="flash-btn" id="btnFlashToggle" title="闪光灯">🔦</button>
-        <button class="focus-btn" id="btnAutoFocus" title="自动对焦">🎯</button>
-        <div class="focus-slider-container" id="focusSliderContainer"><span class="focus-slider-label">焦距</span><input type="range" id="focusSlider" min="0" max="20" step="0.1" value="10"></div>
+    <!-- 统计 & 导出 -->
+    <div class="stats-bar">
+        <div><span class="stats-count" id="totalCount">0</span> <span class="stats-label">项配件已盘点</span></div>
+        <button id="exportExcelBtn" class="export-btn">📎 导出Excel</button>
     </div>
-</div>
-<input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none;">
-<div class="result-toast" id="resultToast"></div>
 
-<div class="bottom-bar">
-    <button class="btn btn-outline btn-sm" id="btnExport">💾 导出</button>
-    <button class="btn btn-outline btn-sm" id="btnImport">📥 导入</button>
-    <button class="btn btn-outline btn-sm" id="btnResetAll">🗑️ 重置</button>
+    <!-- 盘点清单 -->
+    <div class="list-container">
+        <div class="list-header">
+            <span>📋 配件在库清单</span>
+            <span>状态</span>
+        </div>
+        <div id="inventoryList" class="list-items">
+            <div class="empty-list">暂无盘点记录，请扫码添加配件 ✅</div>
+        </div>
+        <div class="clear-all">
+            <button id="clearAllBtn" class="btn-clear">🗑️ 清空所有盘点数据</button>
+        </div>
+    </div>
+    <footer>数据云端存储 · 分次盘点自动同步 · 扫码即确认在库</footer>
 </div>
-<input type="file" id="importFileInput" accept=".json" style="display:none;">
+<div id="toastMsg" class="toast-msg" style="opacity:0;">提示</div>
 
 <script>
-    (() => {
-        const AudioCtx = window.AudioContext || window.webkitAudioContext; let audioCtx;
-        const beep = (f,d,t='sine') => { try{ if(!audioCtx) audioCtx=new AudioCtx(); if(audioCtx.state==='suspended') audioCtx.resume(); const o=audioCtx.createOscillator(),g=audioCtx.createGain(); o.type=t; o.frequency.value=f; g.gain.setValueAtTime(0.3,audioCtx.currentTime); g.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+d); o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime+d); }catch(e){} };
-        const playOk = ()=>{ beep(880,0.12); setTimeout(()=>beep(1100,0.18),100); };
-        const playErr = ()=> beep(280,0.25,'square');
+    // ----------------------------- 1. 配置 Firebase (云端存储解决方案) ---------------------------------
+    // 注意：为了可运行，此处给出占位配置，用户需要根据自己 Firebase 项目替换以下配置。
+    // 步骤：创建 Firebase 项目 → 启用 Firestore → 复制 web 应用配置。
+    // 安全规则（测试/演示）可设置： allow read, write: if true; （生产环境建议基于用户认证）
+    const firebaseConfig = {
+        // 请替换为自己的 Firebase 项目配置 (本示例为了展示功能，使用演示配置无效，需用户自备)
+        // 下方为示例占位，真正使用时请去 Firebase 控制台获取。
+        apiKey: "AIzaSyDummyPlaceholderReplaceWithYourOwnKey",
+        authDomain: "inventory-scanner-demo.firebaseapp.com",
+        projectId: "inventory-scanner-demo",
+        storageBucket: "inventory-scanner-demo.appspot.com",
+        messagingSenderId: "123456789012",
+        appId: "1:123456789012:web:abcdef123456"
+    };
+    // 若未配置正确的firebase，提示用户，但为了功能不崩溃，采用本地模拟？但要求云端存储，必须提示。
+    // 为了演示能在不配置时友好提示，但仍然尝试初始化；若配置错误则提醒并降级但依然允许本地临时存？必须严格按照“云端储存”要求
+    // 所以会初始化真实的Firebase，如果用户未替换会报错，我们在控制台给出指示, 但为了让界面正常，会捕捉错误并提示连接失败。
+    // 更好的做法: 显示配置指引，但功能上会尝试连接云端; 为了真实验证，我将在代码中加详细指引。
+    let db;
+    let firebaseInitialized = false;
+    try {
+        if (firebase.apps.length === 0) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        db = firebase.firestore();
+        // 测试连接
+        console.log("Firebase 已初始化，等待云端同步");
+        firebaseInitialized = true;
+    } catch (e) {
+        console.error("Firebase 初始化失败，请检查配置：", e);
+        // 用户未正确配置时，弹窗提示，且数据无法云端存储, 但仍可演示本地临时数据? 但要求云端, 必须停止使用并提示。
+        // 为了让工具完整，会在页面顶部显示错误提示，但不影响扫码体验但数据不会持久化。为了满足题目，确保给出配置说明。
+        document.body.insertAdjacentHTML('afterbegin', '<div style="background:#ffeded; color:#b91c1c; padding:10px; text-align:center; margin-bottom:10px; border-radius:20px;">⚠️ Firebase 未正确配置，云端存储不可用！请配置正确的 firebaseConfig 以保证数据云端同步。</div>');
+        // 降级提供localStorage模拟，但不再符合云端严格需求，但至少让扫码不报错且演示功能。
+        // 但题目强烈要求云端储存，我将在注释强调必须配置。
+        firebaseInitialized = false;
+    }
 
-        const STATE = {
-            tableData:[], headers:[], fileName:'', totalRows:0, passedCount:0,
-            scanLog:[], isScanning:false, currentScanResult:null,
-            mediaStream:null, videoTrack:null, scanInterval:null, flashOn:false
-        };
-        const $=id=>document.getElementById(id);
-        const dom = {
-            fileInput:$('fileInput'), uploadZone:$('uploadZone'), uploadStatus:$('uploadStatus'),
-            fileInfo:$('fileInfo'), fileName:$('fileName'), rowCount:$('rowCount'), btnRemoveFile:$('btnRemoveFile'),
-            statTotal:$('statTotal'), statPassed:$('statPassed'), statRemaining:$('statRemaining'),
-            btnScanFab:$('btnScanFab'), btnPhotoScan:$('btnPhotoScan'), scanFabLabel:$('scanFabLabel'),
-            scannerModal:$('scannerModal'), btnScannerClose:$('btnScannerClose'), scannerHint:$('scannerHint'),
-            scannerVideo:$('scanner-video'), manualQRInput:$('manualQRInput'), btnManualSubmit:$('btnManualSubmit'),
-            tableContainer:$('tableContainer'), logList:$('logList'), btnClearLog:$('btnClearLog'),
-            resultToast:$('resultToast'), btnExport:$('btnExport'), btnImport:$('btnImport'),
-            btnResetAll:$('btnResetAll'), importFileInput:$('importFileInput'),
-            focusTapArea:$('focusTapArea'), photoInput:$('photoInput'),
-            btnCloudInfo:$('btnCloudInfo'), btnRefreshStats:$('btnRefreshStats'),
-            btnFlashToggle:$('btnFlashToggle'), btnAutoFocus:$('btnAutoFocus'),
-            focusSliderContainer:$('focusSliderContainer'), focusSlider:$('focusSlider'),
-            resolutionLabel:$('resolutionLabel')
-        };
+    // 集合名称
+    const COLLECTION_NAME = "inventory_items";
 
-        let toastTimer;
-        const toast = (msg,type='info') => {
-            const el=dom.resultToast; clearTimeout(toastTimer);
-            el.className='result-toast '+type; el.textContent=msg;
-            void el.offsetWidth; el.classList.add('show');
-            toastTimer=setTimeout(()=>el.classList.remove('show'),2000);
-        };
+    // 全局数据列表 (实时更新)
+    let inventoryData = [];      // 存储 { id, code, lastScanned, status }
 
-        const STORAGE_KEY = 'parts_final_stable';
-        const saveLocal = ()=>{ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({ tableData:STATE.tableData, headers:STATE.headers, fileName:STATE.fileName, totalRows:STATE.totalRows, passedCount:STATE.passedCount, scanLog:STATE.scanLog.slice(-100) })); }catch(e){} };
-        const loadLocal = ()=>{ try{ const d=JSON.parse(localStorage.getItem(STORAGE_KEY)); if(!d||!d.tableData) return false; STATE.tableData=d.tableData; STATE.headers=d.headers||[]; STATE.fileName=d.fileName||''; STATE.totalRows=d.totalRows||d.tableData.length; STATE.passedCount=d.passedCount||0; STATE.scanLog=d.scanLog||[]; recalcPassed(); return true; }catch(e){return false;} };
-        const recalcPassed = ()=> STATE.passedCount = STATE.tableData.filter(r=>r.T==='通过').length;
+    // 防重复扫描flag + 时间锁
+    let lastScannedCode = "";
+    let scanPending = false;
 
-        const indexToColLetter = i => { let s=''; let t=i; do{ s=String.fromCharCode(65+(t%26))+s; t=Math.floor(t/26)-1; }while(t>=0); return s; };
-        const parseExcel = file => new Promise((resolve,reject)=>{
-            const reader=new FileReader();
-            reader.onload=e=>{ try{ const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'}); const sheet=wb.Sheets[wb.SheetNames[0]]; const json=XLSX.utils.sheet_to_json(sheet,{header:1,defval:''}); if(json.length<2) return reject(new Error('表头+至少一行数据')); const headers=json[0].map(h=>String(h||'').trim()); const rows=[]; for(let i=1;i<json.length;i++){ const rd=json[i]; if(!rd||rd.every(c=>c==='')) continue; const obj={}; headers.forEach((h,idx)=>{ const col=indexToColLetter(idx); obj[col]=String(rd[idx]||'').trim(); if(h) obj[h]=obj[col]; }); obj.T=obj.T||''; rows.push(obj); } resolve({headers,rows,fileName:file.name}); }catch(err){reject(err);} };
-            reader.onerror=()=>reject(new Error('读取失败')); reader.readAsArrayBuffer(file);
+    // 扫码器实例
+    let html5QrCode;
+    let currentCameraId = "environment"; // 后置默认
+    let isScanning = false;
+
+    // DOM 元素
+    const inventoryListDiv = document.getElementById('inventoryList');
+    const totalCountSpan = document.getElementById('totalCount');
+    const exportBtn = document.getElementById('exportExcelBtn');
+    const clearAllBtn = document.getElementById('clearAllBtn');
+    const switchCameraBtn = document.getElementById('switchCameraBtn');
+    const restartScanBtn = document.getElementById('restartScanBtn');
+    const manualCodeInput = document.getElementById('manualCodeInput');
+    const manualAddBtn = document.getElementById('manualAddBtn');
+    const toastMsgDiv = document.getElementById('toastMsg');
+
+    // 显示提示消息
+    function showToast(message, duration = 2000) {
+        toastMsgDiv.innerText = message;
+        toastMsgDiv.style.opacity = '1';
+        setTimeout(() => {
+            toastMsgDiv.style.opacity = '0';
+        }, duration);
+    }
+
+    // 格式化时间 (Firestore Timestamp 或 Date)
+    function formatDate(date) {
+        if (!date) return '未知时间';
+        const d = date.toDate ? date.toDate() : new Date(date);
+        return `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate().toString().padStart(2,'0')} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}:${d.getSeconds().toString().padStart(2,'0')}`;
+    }
+
+    // 渲染前端列表
+    function renderList() {
+        if (!inventoryListDiv) return;
+        if (inventoryData.length === 0) {
+            inventoryListDiv.innerHTML = '<div class="empty-list">✨ 暂无盘点记录，扫描二维码确认配件在库 ✨</div>';
+            totalCountSpan.innerText = '0';
+            return;
+        }
+        totalCountSpan.innerText = inventoryData.length;
+        let html = '';
+        inventoryData.forEach(item => {
+            const timeStr = item.lastScanned ? formatDate(item.lastScanned) : '刚刚盘点';
+            html += `
+                <div class="inventory-item" data-id="${item.id}">
+                    <div class="item-code">${escapeHtml(item.code)}</div>
+                    <div class="item-info">
+                        <div class="item-time">${timeStr}</div>
+                        <div class="item-status">✅ 在库</div>
+                    </div>
+                    <button class="delete-item" data-code="${item.code}" data-id="${item.id}">🗑️</button>
+                </div>
+            `;
         });
+        inventoryListDiv.innerHTML = html;
+        // 绑定删除事件 (事件委托)
+        document.querySelectorAll('.delete-item').forEach(btn => {
+            btn.removeEventListener('click', handleDelete);
+            btn.addEventListener('click', handleDelete);
+        });
+    }
 
-        // 解析逻辑：去除空格后按位置提取
-        const analyzeQR = text => {
-            const clean = text.replace(/\s/g, ''); // 去除所有空格
-            if (clean.length < 20) return {success:false, error:'内容过短（需≥20位）'};
-            const searchB = clean.substring(5, 12);  // 第6-12位 (索引5-11)
-            const searchG = clean.substring(12, 19); // 第13-19位 (索引12-18)
-            const searchN = clean.substring(19);     // 第20位至末尾 (索引19+)
-            if (!searchB || !searchG || !searchN) return {success:false, error:'提取字段失败'};
-            return {success:true, searchB, searchG, searchN};
-        };
+    // 删除处理
+    async function handleDelete(e) {
+        e.stopPropagation();
+        const code = e.currentTarget.getAttribute('data-code');
+        const id = e.currentTarget.getAttribute('data-id');
+        if (!code && !id) return;
+        if (!firebaseInitialized) {
+            showToast("云端未连接，无法删除", 1500);
+            return;
+        }
+        try {
+            // 根据文档ID删除（文档ID我们存储的是配件码）
+            await db.collection(COLLECTION_NAME).doc(code).delete();
+            showToast(`已移除配件: ${code.substring(0, 20)}`, 1000);
+            // 实时监听会自动刷新，但我们也手动触发刷新（避免监听延迟）
+            fetchDataFromCloud();
+        } catch (err) {
+            console.error("删除失败", err);
+            showToast("删除失败，请重试", 1500);
+        }
+    }
 
-        const processScan = qrText => {
-            if (STATE.currentScanResult === qrText && STATE.isScanning) return;
-            STATE.currentScanResult = qrText;
-            console.log('扫描内容:', qrText);
-            const a = analyzeQR(qrText);
-            if (!a.success) { toast('❌ '+a.error,'error'); playErr(); addLog(qrText,false,a.error); pauseScan(); return; }
-            const {searchB, searchG, searchN} = a;
-            console.log('提取字段 B:', searchB, 'G:', searchG, 'N:', searchN);
-            const matches = STATE.tableData.filter(r => String(r.B||'').trim() === searchB);
-            if (matches.length === 0) {
-                toast('⚠️ 未找到B列匹配项：' + searchB, 'error'); playErr();
-                addLog(qrText, false, 'B列无匹配'); pauseScan(); return;
-            }
-            const full = matches.filter(r => String(r.G||'').trim() === searchG && String(r.N||'').trim() === searchN);
-            let updated = 0;
-            full.forEach(r => { if (r.T !== '通过') { r.T = '通过'; updated++; } });
-            if (updated > 0) {
-                recalcPassed(); saveLocal(); updateStats(); renderTable();
-                toast('✅ 盘点通过','success'); playOk(); addLog(qrText, true, '通过');
-            } else if (full.length > 0) {
-                toast('ℹ️ 已通过','info');
+    // 从云端获取所有数据并实时渲染 (监听快照)
+    let unsubscribe = null;
+    function listenToCloud() {
+        if (!firebaseInitialized || !db) return;
+        if (unsubscribe) unsubscribe();
+        const collectionRef = db.collection(COLLECTION_NAME).orderBy("lastScanned", "desc");
+        unsubscribe = collectionRef.onSnapshot(snapshot => {
+            const items = [];
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                items.push({
+                    id: doc.id,
+                    code: data.code || doc.id,
+                    lastScanned: data.lastScanned,
+                    status: data.status || "in_stock"
+                });
+            });
+            inventoryData = items;
+            renderList();
+        }, error => {
+            console.error("监听云端失败", error);
+            showToast("云端同步异常，检查网络或配置", 2000);
+        });
+    }
+
+    // 主动拉取一次数据 (删除后或手动刷新)
+    async function fetchDataFromCloud() {
+        if (!firebaseInitialized) return;
+        try {
+            const snapshot = await db.collection(COLLECTION_NAME).orderBy("lastScanned", "desc").get();
+            const items = [];
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                items.push({
+                    id: doc.id,
+                    code: data.code || doc.id,
+                    lastScanned: data.lastScanned,
+                    status: data.status || "in_stock"
+                });
+            });
+            inventoryData = items;
+            renderList();
+        } catch (e) {
+            console.warn(e);
+        }
+    }
+
+    // 核心：添加/更新配件（在库确认） upsert 根据配件码
+    async function addOrUpdateInventory(code) {
+        if (!code || code.trim() === "") {
+            showToast("无效的配件码", 1000);
+            return false;
+        }
+        const trimmedCode = code.trim();
+        if (!firebaseInitialized) {
+            showToast("云端未连接，无法存储，请检查Firebase配置", 2000);
+            return false;
+        }
+        try {
+            const docRef = db.collection(COLLECTION_NAME).doc(trimmedCode);
+            const docSnap = await docRef.get();
+            const now = firebase.firestore.FieldValue.serverTimestamp();
+            if (docSnap.exists) {
+                // 更新盘点时间
+                await docRef.update({
+                    lastScanned: now,
+                    status: "in_stock"
+                });
+                showToast(`🔄 更新盘点: ${trimmedCode.substring(0, 24)}`, 1200);
             } else {
-                toast('⚠️ G列或N列不匹配', 'error'); playErr();
-                addLog(qrText, false, 'G/N不匹配');
+                // 新增配件记录
+                await docRef.set({
+                    code: trimmedCode,
+                    lastScanned: now,
+                    status: "in_stock",
+                    createdAt: now
+                });
+                showToast(`✅ 新增在库配件: ${trimmedCode.substring(0, 24)}`, 1200);
             }
-            pauseScan();
-        };
-        const pauseScan = ()=>{ if(STATE.isScanning) setTimeout(()=>{STATE.currentScanResult=null; dom.scannerHint.textContent='将二维码对准框内';},1500); else STATE.currentScanResult=null; };
-        const addLog = (qr,ok,detail) => { STATE.scanLog.unshift({time:new Date().toLocaleString('zh-CN',{hour12:false}), qr:qr.length>40?qr.slice(0,40)+'...':qr, ok, detail}); if(STATE.scanLog.length>100) STATE.scanLog.length=100; saveLocal(); renderLog(); };
+            // 触发刷新（监听会自动更新，但手动确保）
+            return true;
+        } catch (err) {
+            console.error("云端写入错误", err);
+            showToast("云端保存失败: " + err.message, 2000);
+            return false;
+        }
+    }
 
-        const updateStats = ()=>{ dom.statTotal.textContent=STATE.totalRows; dom.statPassed.textContent=STATE.passedCount; dom.statRemaining.textContent=Math.max(0,STATE.totalRows-STATE.passedCount); };
-        const renderTable = ()=>{ if(!STATE.tableData.length){ dom.tableContainer.innerHTML='<div style="padding:30px;text-align:center;color:#999;">暂无数据</div>'; return; } const maxCol=Math.max(STATE.headers.length,20); let h='<table><thead><tr><th>#</th>'; for(let i=0;i<maxCol;i++) h+=`<th>${i<STATE.headers.length?STATE.headers[i]:indexToColLetter(i)}</th>`; h+='</tr></thead><tbody>'; STATE.tableData.forEach((r,idx)=>{ h+=`<tr class="${r.T==='通过'?'row-passed':''}"><td>${idx+1}</td>`; for(let i=0;i<maxCol;i++){ const col=indexToColLetter(i), val=r[col]||''; h+=`<td>${col==='T'?(val==='通过'?'<span class="badge-pass">通过</span>':val||'<span style="color:#999;">待盘点</span>'):val}</td>`; } h+='</tr>'; }); h+='</tbody></table>'; dom.tableContainer.innerHTML=h; };
-        const renderLog = ()=>{ if(!STATE.scanLog.length){ dom.logList.innerHTML='<li style="color:#999;">暂无记录</li>'; return; } dom.logList.innerHTML=STATE.scanLog.map(l=>`<li><span class="log-dot ${l.ok?'ok':'fail'}"></span> ${l.time} ${l.detail} <span style="color:#999;">${l.qr}</span></li>`).join(''); };
-        const updateUploadUI = ()=>{ if(STATE.fileName){ dom.uploadZone.classList.add('has-file'); dom.uploadStatus.textContent='已加载'; dom.fileInfo.style.display='flex'; dom.fileName.textContent=STATE.fileName; dom.rowCount.textContent=STATE.totalRows; } else{ dom.uploadZone.classList.remove('has-file'); dom.uploadStatus.textContent='请上传Excel'; dom.fileInfo.style.display='none'; } };
-        const refreshAllUI = ()=>{ updateStats(); renderTable(); renderLog(); updateUploadUI(); };
+    // 清空所有盘点数据 (慎用)
+    async function clearAllInventory() {
+        if (!firebaseInitialized) {
+            showToast("云端未连接，无法清空", 1500);
+            return;
+        }
+        if (inventoryData.length === 0) return;
+        const confirmClear = confirm("⚠️ 警告：将删除云端所有盘点记录，无法恢复。确定清空吗？");
+        if (!confirmClear) return;
+        try {
+            const batch = db.batch();
+            const snapshot = await db.collection(COLLECTION_NAME).get();
+            snapshot.forEach(doc => {
+                batch.delete(doc.ref);
+            });
+            await batch.commit();
+            showToast("已清空所有盘点数据", 1500);
+            // 监听会自动刷新
+        } catch (err) {
+            showToast("清空失败", 1500);
+        }
+    }
 
-        // 解码引擎
-        let barcodeDetector = null;
-        if (typeof BarcodeDetector !== 'undefined') { try { barcodeDetector = new BarcodeDetector({ formats: ['qr_code'] }); } catch(e) {} }
-
-        function tryDecode(imageData) {
-            const scales = [1.0, 0.8, 1.2, 0.5, 2.0];
-            for (let s of scales) {
-                let w = Math.floor(imageData.width * s), h = Math.floor(imageData.height * s);
-                if (w < 20 || h < 20) continue;
-                const canvas = document.createElement('canvas');
-                canvas.width = w; canvas.height = h;
-                const ctx = canvas.getContext('2d');
-                if (s === 1.0) {
-                    ctx.putImageData(imageData, 0, 0);
+    // 导出Excel表格
+    async function exportToExcel() {
+        if (!firebaseInitialized) {
+            showToast("云端未同步，无法获取最新数据", 1500);
+            return;
+        }
+        // 获取最新快照保证导出完整
+        let exportData = [];
+        try {
+            const snapshot = await db.collection(COLLECTION_NAME).orderBy("lastScanned", "desc").get();
+            if (snapshot.empty) {
+                showToast("暂无数据可导出", 1000);
+                return;
+            }
+            snapshot.forEach(doc => {
+                const d = doc.data();
+                let timeValue = d.lastScanned;
+                let timeStr = "";
+                if (timeValue) {
+                    const ts = timeValue.toDate ? timeValue.toDate() : new Date(timeValue);
+                    timeStr = `${ts.getFullYear()}-${(ts.getMonth()+1).toString().padStart(2,'0')}-${ts.getDate().toString().padStart(2,'0')} ${ts.getHours().toString().padStart(2,'0')}:${ts.getMinutes().toString().padStart(2,'0')}:${ts.getSeconds().toString().padStart(2,'0')}`;
                 } else {
-                    const tempCanvas = document.createElement('canvas');
-                    tempCanvas.width = imageData.width; tempCanvas.height = imageData.height;
-                    tempCanvas.getContext('2d').putImageData(imageData, 0, 0);
-                    ctx.drawImage(tempCanvas, 0, 0, w, h);
+                    timeStr = "未知";
                 }
-                const scaledData = ctx.getImageData(0, 0, w, h);
-                let code = jsQR(scaledData.data, w, h);
-                if (code) return code.data;
-            }
-            return null;
+                exportData.push({
+                    "配件码": d.code || doc.id,
+                    "盘点状态": "在库",
+                    "最后盘点时间": timeStr,
+                    "备注": "二维码扫码确认"
+                });
+            });
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "配件盘点清单");
+            const currentDate = new Date();
+            const fileName = `配件盘点记录_${currentDate.getFullYear()}-${(currentDate.getMonth()+1).toString().padStart(2,'0')}-${currentDate.getDate().toString().padStart(2,'0')}.xlsx`;
+            XLSX.writeFile(wb, fileName);
+            showToast(`导出成功，共 ${exportData.length} 条记录`, 2000);
+        } catch (err) {
+            console.error(err);
+            showToast("导出失败，请重试", 1500);
         }
+    }
 
-        async function decodeFrame(video) {
-            if (video.readyState < 2 || video.videoWidth < 1) return null;
-            const vw = video.videoWidth, vh = video.videoHeight;
-            const cropSize = Math.min(300, vw, vh);
-            const sx = (vw - cropSize) / 2, sy = (vh - cropSize) / 2;
-            const canvas = document.createElement('canvas');
-            canvas.width = cropSize; canvas.height = cropSize;
-            const ctx = canvas.getContext('2d', { willReadFrequently: true });
-            ctx.drawImage(video, sx, sy, cropSize, cropSize, 0, 0, cropSize, cropSize);
+    // 扫码成功回调 (去重 + 防抖)
+    function onScanSuccess(decodedText, decodedResult) {
+        if (scanPending) return;
+        const nowCode = decodedText;
+        if (lastScannedCode === nowCode) {
+            // 相同码1秒内防重复扫描
+            return;
+        }
+        lastScannedCode = nowCode;
+        scanPending = true;
+        // 调用云端记录
+        addOrUpdateInventory(nowCode).finally(() => {
+            setTimeout(() => {
+                scanPending = false;
+            }, 800);
+        });
+        // 可选振动 (手机支持)
+        if (navigator.vibrate) navigator.vibrate(100);
+    }
 
-            if (barcodeDetector) {
-                try {
-                    const codes = await barcodeDetector.detect(canvas);
-                    if (codes.length > 0) return codes[0].rawValue;
-                } catch(e) {}
-            }
-            return tryDecode(ctx.getImageData(0, 0, cropSize, cropSize));
-        }
-
-        let lastDecodeTime = 0;
-        let missCounter = 0;
-        function scanLoop(now) {
-            if (!STATE.isScanning) return;
-            if (now - lastDecodeTime >= 300) {
-                lastDecodeTime = now;
-                decodeFrame(dom.scannerVideo).then(result => {
-                    if (result) {
-                        missCounter = 0;
-                        dom.scannerHint.textContent = '';
-                        processScan(result.trim());
-                    } else {
-                        missCounter++;
-                        if (missCounter >= 10) dom.scannerHint.textContent = '⚠️ 无法识别，建议拍照扫描';
-                        else if (missCounter >= 5) dom.scannerHint.textContent = `⏳ 持续解码中... (${missCounter})`;
-                    }
-                }).catch(()=>{});
-            }
-            STATE.scanInterval = requestAnimationFrame(scanLoop);
-        }
-
-        async function startVideoScanner() {
-            if (!STATE.tableData.length) { toast('⚠️ 请先上传表格','error'); return; }
-            if (STATE.isScanning) return;
-            const constraints = [{ video: { facingMode:'environment', width:{ideal:1920}, height:{ideal:1080} } }, { video: { facingMode:'environment', width:{ideal:1280}, height:{ideal:720} } }];
-            let stream = null;
-            for (let c of constraints) { try { stream = await navigator.mediaDevices.getUserMedia({...c, audio:false}); break; } catch(e) {} }
-            if (!stream) { toast('❌ 无法访问摄像头','error'); return; }
-            STATE.mediaStream = stream; STATE.videoTrack = stream.getVideoTracks()[0];
-            dom.scannerVideo.srcObject = stream;
-            await dom.scannerVideo.play();
-            const updateRes = () => { const w=dom.scannerVideo.videoWidth, h=dom.scannerVideo.videoHeight; dom.resolutionLabel.textContent = w&&h ? `${w}x${h}` : '...'; };
-            dom.scannerVideo.addEventListener('loadedmetadata', updateRes);
-            setTimeout(updateRes, 1000);
-            dom.scannerModal.classList.add('active');
-            dom.btnScanFab.classList.add('scanning');
-            dom.scanFabLabel.textContent = '📹 解码中...';
-            STATE.isScanning = true; STATE.currentScanResult = null;
-            if (STATE.videoTrack) {
-                applyFocus(STATE.videoTrack);
-                initFlashButton(STATE.videoTrack);
-                initManualFocus(STATE.videoTrack);
-            }
-            startBrightnessMonitor();
-            lastDecodeTime = 0; missCounter = 0;
-            STATE.scanInterval = requestAnimationFrame(scanLoop);
-        }
-
-        function applyFocus(track) { track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {}); }
-        function initFlashButton(track) {
-            const cap = track.getCapabilities ? track.getCapabilities() : {};
-            if (cap.torch) { dom.btnFlashToggle.style.display='flex'; dom.btnFlashToggle.onclick=()=>{ STATE.flashOn=!STATE.flashOn; track.applyConstraints({advanced:[{torch:STATE.flashOn}]}).catch(()=>{}); dom.btnFlashToggle.textContent=STATE.flashOn?'🔦✨':'🔦'; }; }
-            else dom.btnFlashToggle.style.display='none';
-        }
-        function initManualFocus(track) {
-            const cap = track.getCapabilities ? track.getCapabilities() : {};
-            if (cap.focusMode && cap.focusMode.includes('manual')) { dom.focusSliderContainer.style.display='flex'; dom.focusSlider.oninput=()=>track.applyConstraints({advanced:[{focusMode:'manual',focusDistance:parseFloat(dom.focusSlider.value)}]}).catch(()=>{}); }
-            else dom.focusSliderContainer.style.display='none';
-            dom.btnAutoFocus.style.display='flex'; dom.btnAutoFocus.onclick=()=>{ track.applyConstraints({advanced:[{focusMode:'auto'}]}).then(()=>setTimeout(()=>applyFocus(track),800)).catch(()=>{}); toast('🎯 对焦中…','info'); };
-        }
-        function startBrightnessMonitor() {
-            if (STATE.brightnessTimer) clearInterval(STATE.brightnessTimer);
-            STATE.brightnessTimer = setInterval(() => {
-                if (!STATE.isScanning) return;
-                const video = dom.scannerVideo; if (!video || video.readyState<2) return;
-                const c = document.createElement('canvas'); c.width=32; c.height=32; const ctx=c.getContext('2d'); ctx.drawImage(video,0,0,32,32);
-                const d = ctx.getImageData(0,0,32,32).data; let sum=0;
-                for (let i=0;i<d.length;i+=4) sum+=(d[i]*0.299+d[i+1]*0.587+d[i+2]*0.114);
-                if (missCounter > 2) return;
-                dom.scannerHint.textContent = (sum/(d.length/4))<80 ? '光线暗，请开闪光灯' : '对准框内自动识别';
-            }, 1500);
-        }
-        function stopVideoScanner() {
-            STATE.isScanning = false;
-            if (STATE.scanInterval) { cancelAnimationFrame(STATE.scanInterval); STATE.scanInterval = null; }
-            if (STATE.mediaStream) { STATE.mediaStream.getTracks().forEach(t=>t.stop()); STATE.mediaStream = null; }
-            STATE.videoTrack = null; STATE.flashOn = false;
-            dom.scannerVideo.srcObject = null;
-            dom.scannerModal.classList.remove('active'); dom.btnScanFab.classList.remove('scanning');
-            dom.scanFabLabel.textContent = '📹 连续 | 📸 拍照';
-            STATE.currentScanResult = null;
-            if (STATE.brightnessTimer) { clearInterval(STATE.brightnessTimer); STATE.brightnessTimer = null; }
-            dom.btnFlashToggle.style.display='none'; dom.btnAutoFocus.style.display='none'; dom.focusSliderContainer.style.display='none';
-        }
-
-        // 拍照扫描
-        async function photoScanFromFile(file) {
+    // 初始化扫码器 (带优化对焦，调后置摄像头)
+    async function initScanner(cameraId = "environment") {
+        if (html5QrCode) {
             try {
-                const img = new Image(); img.src = URL.createObjectURL(file);
-                await new Promise((r,rj)=>{ img.onload=r; img.onerror=rj; });
-                const maxDim=1280; let w=img.width, h=img.height;
-                if(w>maxDim||h>maxDim){ const r=Math.min(maxDim/w,maxDim/h); w=Math.round(w*r); h=Math.round(h*r); }
-                const canvas=document.createElement('canvas'); canvas.width=w; canvas.height=h;
-                const ctx=canvas.getContext('2d',{willReadFrequently:true}); ctx.drawImage(img,0,0,w,h); URL.revokeObjectURL(img.src);
-                if(barcodeDetector){ try{ const codes=await barcodeDetector.detect(canvas); if(codes.length>0){ processScan(codes[0].rawValue.trim()); toast('📸 成功','success'); playOk(); dom.photoInput.value=''; return; } }catch(e){} }
-                const result = tryDecode(ctx.getImageData(0,0,w,h));
-                if(result){ processScan(result.trim()); toast('📸 成功','success'); playOk(); }
-                else{ toast('❌ 未识别','error'); playErr(); }
-            } catch(e) { toast('❌ 图片处理失败','error'); }
-            dom.photoInput.value='';
+                await html5QrCode.stop();
+            } catch (e) { console.warn(e); }
         }
-
-        const exportData = () => { if(!STATE.tableData.length){ toast('无数据','error'); return; } recalcPassed(); saveLocal(); const blob=new Blob([JSON.stringify({tableData:STATE.tableData,headers:STATE.headers,fileName:STATE.fileName,totalRows:STATE.totalRows,passedCount:STATE.passedCount,scanLog:STATE.scanLog,exportedAt:new Date().toISOString()},null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`盘点_${new Date().toISOString().slice(0,10)}.json`; a.click(); toast('💾 导出成功','success'); };
-        const importData = file => { const reader=new FileReader(); reader.onload=e=>{ try{ const d=JSON.parse(e.target.result); if(!d.tableData) throw new Error('格式错误'); if(!confirm(`导入 ${d.totalRows} 行，覆盖？`)) return; STATE.tableData=d.tableData; STATE.headers=d.headers||[]; STATE.fileName=d.fileName||'导入'; STATE.totalRows=d.totalRows; STATE.passedCount=d.passedCount||0; STATE.scanLog=d.scanLog||[]; recalcPassed(); saveLocal(); refreshAllUI(); toast('✅ 导入成功','success'); }catch(err){ toast('❌ 导入失败','error'); } }; reader.readAsText(file); };
-        const resetAll = () => { if(!confirm('重置全部？')) return; STATE.tableData=[]; STATE.headers=[]; STATE.fileName=''; STATE.totalRows=0; STATE.passedCount=0; STATE.scanLog=[]; localStorage.removeItem(STORAGE_KEY); refreshAllUI(); dom.tableContainer.innerHTML='<div style="padding:30px;text-align:center;color:#999;">暂无数据</div>'; dom.logList.innerHTML='<li style="color:#999;">暂无记录</li>'; dom.uploadZone.classList.remove('has-file'); };
-
-        const bindEvents = () => {
-            dom.fileInput.addEventListener('change',async e=>{ const f=e.target.files[0]; if(!f) return; if(STATE.tableData.length&&!confirm('已有数据，覆盖？')){dom.fileInput.value='';return;} try{ const {headers,rows,fileName}=await parseExcel(f); STATE.headers=headers; STATE.tableData=rows; STATE.fileName=fileName; STATE.totalRows=rows.length; STATE.passedCount=0; STATE.scanLog=[]; recalcPassed(); saveLocal(); refreshAllUI(); toast('✅ 加载 '+rows.length+' 行','success'); }catch(err){ toast('❌ '+err.message,'error'); } dom.fileInput.value=''; });
-            dom.btnRemoveFile.addEventListener('click',()=>{ if(STATE.passedCount&&!confirm('确定移除？')) return; STATE.tableData=[]; STATE.headers=[]; STATE.fileName=''; STATE.totalRows=0; STATE.passedCount=0; STATE.scanLog=[]; localStorage.removeItem(STORAGE_KEY); refreshAllUI(); });
-            dom.btnPhotoScan.addEventListener('click',()=>{ if(!STATE.tableData.length){ toast('⚠️ 请先上传表格','error'); return; } dom.photoInput.click(); });
-            dom.photoInput.addEventListener('change',e=>{ if(e.target.files[0]) photoScanFromFile(e.target.files[0]); });
-            dom.btnScanFab.addEventListener('click',()=>{ if(STATE.isScanning) stopVideoScanner(); else startVideoScanner(); });
-            dom.btnScannerClose.addEventListener('click',stopVideoScanner);
-            dom.focusTapArea.addEventListener('click',()=>{ if(!STATE.isScanning||!STATE.videoTrack) return; STATE.videoTrack.applyConstraints({advanced:[{focusMode:'auto'}]}).catch(()=>{}); toast('📸 对焦中…','info'); });
-            dom.btnManualSubmit.addEventListener('click',()=>{ const val=dom.manualQRInput.value.trim(); if(!val) return; STATE.currentScanResult=null; processScan(val); dom.manualQRInput.value=''; });
-            dom.btnExport.addEventListener('click',exportData); dom.btnImport.addEventListener('click',()=>dom.importFileInput.click());
-            dom.importFileInput.addEventListener('change',e=>{ if(e.target.files[0]) importData(e.target.files[0]); dom.importFileInput.value=''; });
-            dom.btnResetAll.addEventListener('click',resetAll); dom.btnClearLog.addEventListener('click',()=>{ STATE.scanLog=[]; saveLocal(); renderLog(); });
-            dom.btnCloudInfo.addEventListener('click',()=>alert('☁️ 数据自动保存在手机，导出JSON可存云盘'));
-            dom.btnRefreshStats.addEventListener('click',()=>{ recalcPassed(); saveLocal(); refreshAllUI(); });
-            window.addEventListener('beforeunload',()=>{ if(STATE.tableData.length) saveLocal(); });
-            document.addEventListener('visibilitychange',()=>{ if(document.hidden&&STATE.tableData.length) saveLocal(); });
+        const qrReaderDiv = document.getElementById('qr-reader');
+        qrReaderDiv.innerHTML = ""; // 清空
+        html5QrCode = new Html5Qrcode("qr-reader");
+        const config = {
+            fps: 10,
+            qrbox: { width: 280, height: 280 },
+            aspectRatio: 1.0,
+            // 开启对焦模式：调用advancedCamera的focusMode
+            videoConstraints: {
+                facingMode: cameraId === "environment" ? "environment" : "user",
+                focusMode: "continuous",
+                advanced: [{ focusMode: "continuous" }]
+            }
         };
+        try {
+            await html5QrCode.start(
+                { facingMode: cameraId === "environment" ? "environment" : "user" },
+                config,
+                onScanSuccess,
+                (errorMessage) => {
+                    // 忽略一般扫描错误
+                    // console.debug(errorMessage);
+                }
+            );
+            isScanning = true;
+            showToast("相机已启动，对准二维码即可自动盘点", 1500);
+        } catch (err) {
+            console.error("摄像头启动失败", err);
+            showToast("无法调用摄像头，请检查权限并刷新页面重试", 2000);
+            isScanning = false;
+        }
+    }
 
-        if(loadLocal()) refreshAllUI(); else { updateStats(); renderLog(); }
-        bindEvents();
-    })();
+    // 切换摄像头
+    async function switchCamera() {
+        if (!html5QrCode || !isScanning) {
+            showToast("请先等待扫描器启动", 1000);
+            return;
+        }
+        currentCameraId = currentCameraId === "environment" ? "user" : "environment";
+        await initScanner(currentCameraId);
+        showToast(currentCameraId === "environment" ? "已切换到后置摄像头" : "已切换到前置摄像头", 1000);
+    }
+
+    // 重启扫描 (解决对焦异常)
+    async function restartScanner() {
+        if (html5QrCode && isScanning) {
+            await initScanner(currentCameraId);
+            showToast("扫描器已重启，对焦优化", 1000);
+        } else {
+            await initScanner(currentCameraId);
+        }
+    }
+
+    // 手动添加配件码
+    function manualAddCode() {
+        let rawCode = manualCodeInput.value.trim();
+        if (rawCode === "") {
+            showToast("请输入配件码", 1000);
+            return;
+        }
+        addOrUpdateInventory(rawCode);
+        manualCodeInput.value = "";
+    }
+
+    // 简单防XSS
+    function escapeHtml(str) {
+        return str.replace(/[&<>]/g, function(m) {
+            if (m === '&') return '&amp;';
+            if (m === '<') return '&lt;';
+            if (m === '>') return '&gt;';
+            return m;
+        }).substring(0, 60);
+    }
+
+    // 绑定事件
+    exportBtn.addEventListener('click', exportToExcel);
+    clearAllBtn.addEventListener('click', clearAllInventory);
+    switchCameraBtn.addEventListener('click', switchCamera);
+    restartScanBtn.addEventListener('click', restartScanner);
+    manualAddBtn.addEventListener('click', manualAddCode);
+    manualCodeInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') manualAddCode();
+    });
+
+    // 初始化应用: 云端监听 + 启动扫描器
+    window.addEventListener('load', async () => {
+        if (firebaseInitialized) {
+            listenToCloud();   // 实时同步
+        } else {
+            // 没有云端，但仍显示本地演示（但不符合要求，提示用户配置）
+            inventoryListDiv.innerHTML = '<div class="empty-list">⚠️ 云端未配置，请配置Firebase后再使用完整功能 ⚠️</div>';
+        }
+        await initScanner("environment");
+    });
+
+    // 页面关闭前停止摄像头释放资源
+    window.addEventListener('beforeunload', async () => {
+        if (html5QrCode && isScanning) {
+            try {
+                await html5QrCode.stop();
+            } catch(e) {}
+        }
+        if (unsubscribe) unsubscribe();
+    });
 </script>
 </body>
 </html>
