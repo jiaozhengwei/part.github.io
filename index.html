@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover, maximum-scale=1.0, minimum-scale=1.0">
-    <title>扫码记录工具 · 全字段解析</title>
+    <title>扫码记录工具 · 超清优化版</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <style>
@@ -70,9 +70,10 @@
             background:rgba(0,0,0,0.8); color:#ffcc00; font-size:14px; padding:10px 20px;
             border-radius:20px; z-index:10001; pointer-events:none; white-space:nowrap; font-weight:bold;
         }
+        /* 放大扫码取景框 360px，减少无效黑边，聚焦二维码提升清晰度 */
         .scanner-overlay-frame {
             position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
-            width:280px; height:280px; border:3px solid rgba(255,255,255,0.9);
+            width:360px; height:360px; border:3px solid rgba(255,255,255,0.9);
             border-radius:20px; z-index:10000; pointer-events:none;
             box-shadow:0 0 0 2000px rgba(0,0,0,0.6);
         }
@@ -87,7 +88,7 @@
         .result-toast.info { background:#1a73e8; color:#fff; }
         .stat-badge {
             display:inline-flex; align-items:center; gap:4px; background:#e8f0fe;
-            color:var(--primary); padding:6px 14px; border-radius:20px; font-size:13;
+            color:var(--primary); padding:6px 14px; border-radius:20px; font-size:13px;
         }
         .result-list { list-style:none; max-height:450px; overflow-y:auto; -webkit-overflow-scrolling:touch; }
         .result-list li { padding:10px 12px; border-bottom:1px solid #f0f0f0; transition:background 0.2s; }
@@ -147,22 +148,21 @@
 </head>
 <body>
 <header class="app-header">
-    <div class="logo-area"><div class="logo-icon">📷</div><h1>扫码记录工具</h1></div>
+    <div class="logo-area"><div class="logo-icon">📷</div><h1>扫码记录工具 · 超清优化</h1></div>
 </header>
 <div class="main-content">
     <div class="card">
         <div class="card-header"><span class="card-title">📷 二维码扫描</span><span class="stat-badge" id="countBadge">已扫 0 条</span></div>
         <div class="scan-fab-container">
-            <!-- 只保留2个按钮：超清连拍、单张拍照，删除原视频扫描 -->
             <button class="scan-fab burst-scan" id="btnBurstScan"><span class="fab-icon">🔥</span><span class="fab-label">超清连拍</span></button>
             <button class="scan-fab photo-scan" id="btnPhotoScan"><span class="fab-icon">📸</span><span class="fab-label">单次拍照</span></button>
         </div>
-        <div class="scan-status" id="scanFabLabel">🔥自动连拍｜📸单次拍照</div>
+        <div class="scan-status" id="scanFabLabel">🔥高清自动连拍｜📸系统单次拍照</div>
         <div class="manual-input-row">
             <input type="text" id="manualQRInput" placeholder="✍️ 手动输入二维码内容...">
             <button class="btn btn-outline btn-sm" id="btnManualSubmit">确认</button>
         </div>
-        <div class="tip">💡 推荐🔥超清：内置摄像头自动连续抓拍，无需手动确认照片</div>
+        <div class="tip-text">💡超清采用主摄高清流，自动连续抓拍，画面锐化增强</div>
     </div>
     <div class="card">
         <div class="card-header">
@@ -176,16 +176,14 @@
     </div>
 </div>
 
-<!-- 连拍取景弹窗 -->
 <div class="scanner-modal" id="scannerModal">
     <button class="scanner-close" id="btnScannerClose">✕</button>
     <video id="scanner-video" autoplay playsinline muted></video>
     <div class="scanner-overlay-frame"></div>
-    <div class="scanner-hint" id="scannerHint">对准二维码自动连续识别</div>
+    <div class="scanner-hint" id="scannerHint">二维码放入方框，自动高清识别</div>
     <div id="focusTapArea" style="position:absolute; top:0; left:0; width:100%; height:100%; z-index:10001; background:transparent;"></div>
 </div>
 
-<!-- 单次拍照用input -->
 <input type="file" id="photoInput" accept="image/*" capture="environment" style="position:absolute;opacity:0;width:1px;height:1px;left:-9999px;">
 <div class="result-toast" id="resultToast"></div>
 <div class="bottom-bar">
@@ -198,20 +196,21 @@
 <script>
     (function() {
         const AudioCtx = window.AudioContext || window.webkitAudioContext; let audioCtx;
-        function beep(f,d,t='sine') { try{ if(!audio) audioCtx=new AudioCtx(); if(audioCtx.state==='suspended') audioCtx.resume(); const o=audioCtx.createOscillator(),g=audioCtx.createGain(); o.type=t; o.frequency.value=f; g.gain.setValueAtTime(0.3,audioCtx.currentTime); g.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+d); o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime+d); }catch(e){} }
+        function beep(f,d,t='sine') { try{ if(!audioCtx) audioCtx=new AudioCtx(); if(audioCtx.state==='suspended') audioCtx.resume(); const o=audioCtx.createOscillator(),g=audioCtx.createGain(); o.type=t; o.frequency.value=f; g.gain.setValueAtTime(0.3,audioCtx.currentTime); g.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+d); o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime+d); }catch(e){} }
         function playOk(){ beep(880,0.12); setTimeout(()=>beep(1100,0.18),100); }
         function playErr(){ beep(280,0.25,'square'); }
 
         const STATE = {
             scanResults: [],
-            isBurstScanning: false, // 连拍开关
+            isBurstScanning: false,
             mediaStream:null,
             videoTrack:null,
             burstTimer:null,
-            // 连拍延时配置
+            // 高清连拍延时配置
             burstConfig: {
-                successDelay:1400, //识别成功等待毫秒
-                failDelay:700      //识别失败等待毫秒
+                successDelay:1300,
+                failDelay:650,
+                cropSize:360 //和框尺寸保持一致
             }
         };
 
@@ -240,7 +239,7 @@
             try{ const d=JSON.parse(localStorage.getItem(STORAGE_KEY)); if(!d||!d.scanResults) return false; STATE.scanResults=d.scanResults; return true; }catch(e){return false;}
         }
 
-        // 字段拆分
+        // 字段拆分规则
         function parseContent(raw){
             const clean = raw.replace(/\s/g, '');
             if(clean.length < 20) return null;
@@ -251,7 +250,6 @@
             return { dealerCode, dealerClaimNo, damageCode, partNumber };
         }
 
-        // 添加记录+去重
         function addScanResult(content){
             const last = STATE.scanResults[0];
             if(last && last.content===content && Date.now()-new Date(last.time).getTime()<2000) return false;
@@ -322,30 +320,39 @@
         window._copyItem = (c)=> navigator.clipboard.writeText(c).then(()=>toast('已复制','success')).catch(()=>toast('复制失败','error'));
         window._removeItem = (id)=> { removeScanResult(id); toast('已删除','info'); };
 
-        // 图片解码
+        // ========== 优化1：图像预处理+多倍率+对比度增强解码【解决模糊核心】 ==========
         function tryDecodeImageData(imageData){
+            // 原图解码
             let code = jsQR(imageData.data, imageData.width, imageData.height);
             if(code) return code.data;
-            for(let s of [0.8,1.2,0.5,2.0]){
+            // 多倍率缩放：0.7/1.3/1.8 适配大小二维码
+            const scales = [0.7,1.3,1.8];
+            for(let s of scales){
                 const w=Math.floor(imageData.width*s), h=Math.floor(imageData.height*s);
-                if(w<20||h<20) continue;
+                if(w<180||h<180) continue;
                 const c=document.createElement('canvas'); c.width=w; c.height=h;
-                const ctx=c.getContext('2d'); const t=document.createElement('canvas');
-                t.width=imageData.width; t.height=imageData.height;
-                t.getContext('2d').putImageData(imageData,0,0);
-                ctx.drawImage(t,0,0,w,h);
-                code = jsQR(ctx.getImageData(0,0,w,h).data,w,h);
+                const ctx=c.getContext('2d',{willReadFrequently:true});
+                // 绘制原图+对比度增强
+                ctx.putImageData(imageData,0,0);
+                const newImg = ctx.getImageData(0,0,w,h);
+                // 像素对比度预处理，提亮黑白色块
+                for(let i=0;i<newImg.data.length;i+=4){
+                    const gray = (newImg.data[i]+newImg.data[i+1]+newImg.data[i+2])/3;
+                    const adj = gray>128 ? Math.min(gray+35,255):Math.max(gray-35,0);
+                    newImg.data[i]=newImg.data[i+1]=newImg.data[i+2]=adj;
+                }
+                code = jsQR(newImg.data,w,h);
                 if(code) return code.data;
             }
             return null;
         }
 
-        // 文件图片解析（单次拍照用）
+        // 单次拍照解析
         async function processPhotoFile(file){
             try{
                 const img=new Image(); img.src=URL.createObjectURL(file);
                 await new Promise((r,rj)=>{ img.onload=r; img.onerror=rj; });
-                const maxDim=1280; let w=img.width, h=img.height;
+                const maxDim=1920; let w=img.width, h=img.height;
                 if(w>maxDim||h>maxDim){ const r=Math.min(maxDim/w,maxDim/h); w=Math.round(w*r); h=Math.round(h*r); }
                 const canvas=document.createElement('canvas'); canvas.width=w; canvas.height=h;
                 const ctx=canvas.getContext('2d',{willReadFrequently:true}); ctx.drawImage(img,0,0,w,h); URL.revokeObjectURL(img.src);
@@ -354,41 +361,63 @@
             }catch(e){ return null; }
         }
 
-        // 从预览视频截帧解码（连拍核心）
+        // ==========优化2：DPR设备像素比+高清裁剪视频帧【Retina屏去模糊】==========
         async function decodeVideoFrame(video){
             if(video.readyState<2||video.videoWidth<1) return null;
             const vw=video.videoWidth, vh=video.videoHeight;
-            const crop=Math.min(300,vw,vh), sx=(vw-crop)/2, sy=(vh-crop)/2;
-            const canvas=document.createElement('canvas'); canvas.width=crop; canvas.height=crop;
-            const ctx=canvas.getContext('2d',{willReadFrequently:true}); ctx.drawImage(video,sx,sy,crop,crop,0,0,crop,crop);
+            const crop=STATE.burstConfig.cropSize;
+            // 居中裁剪
+            const sx=(vw-crop)/2, sy=(vh-crop)/2;
+            // 设备像素比DPR
+            const dpr = window.devicePixelRatio||1;
+            const canvas=document.createElement('canvas');
+            canvas.width = crop*dpr;
+            canvas.height = crop*dpr;
+            const ctx=canvas.getContext('2d',{willReadFrequently:true});
+            ctx.scale(dpr,dpr);
+            ctx.drawImage(video,sx,sy,crop,crop,0,0,crop,crop);
             if(typeof BarcodeDetector!=='undefined'){ try{ const bd=new BarcodeDetector({formats:['qr_code']}); const codes=await bd.detect(canvas); if(codes.length>0) return codes[0].rawValue; }catch(e){} }
-            return tryDecodeImageData(ctx.getImageData(0,0,crop,crop));
+            return tryDecodeImageData(ctx.getImageData(0,0,crop*dpr,crop*dpr));
         }
 
-        // 开启内置摄像头
+        // ==========优化3：WebRTC高清摄像头配置 min+ideal+自动对焦+曝光==========
         async function openBurstCamera(){
-            const constraints=[
-                {video:{facingMode:'environment',width:{ideal:1920},height:{ideal:1080}},audio:false},
-                {video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}},audio:false}
+            // 优先4K→1080P→720P三级降级，强制后置主摄
+            const constraintsList = [
+                {video:{
+                    width:{min:1440,ideal:3840,max:4000},
+                    height:{min:1080,ideal:2160,max:3000},
+                    facingMode:{exact:"environment"},
+                    advanced:[{focusMode:'continuous'}]
+                },audio:false},
+                {video:{
+                    width:{min:960,ideal:1920,max:2160},
+                    height:{min:720,ideal:1080,max:1440},
+                    facing:"environment",
+                    advanced:[{focusMode:'continuous'}]
+                },audio:false},
+                {video:{width:{ideal:1280},height:{ideal:720},facingMode:"environment"},audio:false}
             ];
             let stream=null;
-            for(let c of constraints){
+            for(let c of constraintsList){
                 try{
                     stream=await navigator.mediaDevices.getUserMedia(c);
                     break;
                 }catch(err){ continue; }
             }
-            if(!stream){ toast('无法打开后置摄像头','error'); return false; }
+            if(!stream){ toast('无法开启高清后置摄像头','error'); return false; }
             STATE.mediaStream=stream;
             STATE.videoTrack=stream.getVideoTracks()[0];
+            // 持续自动对焦、曝光优化
+            try{
+                await STATE.videoTrack.applyConstraints({advanced:[{focusMode:'continuous',exposureMode:'auto'}]});
+            }catch(e){}
             dom.scannerVideo.srcObject=stream;
             await dom.scannerVideo.play();
             dom.scannerModal.classList.add('active');
-            if(STATE.videoTrack) STATE.videoTrack.applyConstraints({advanced:[{focusMode:'continuous'}]}).catch(()=>{});
             return true;
         }
 
-        // 关闭摄像头
         function closeBurstCamera(){
             if(STATE.mediaStream){ STATE.mediaStream.getTracks().forEach(t=>t.stop()); STATE.mediaStream=null; }
             STATE.videoTrack=null;
@@ -396,7 +425,7 @@
             dom.scannerModal.classList.remove('active');
         }
 
-        // 连拍循环
+        // 连拍无限循环
         async function runBurstLoop(){
             if(!STATE.isBurstScanning) return;
             try{
@@ -404,15 +433,15 @@
                 if(res){
                     const ok=addScanResult(res.trim());
                     if(ok){
-                        toast('✅识别成功','success');
+                        toast('✅高清识别成功','success');
                         playOk();
-                        dom.scannerHint.textContent='识别成功，等待继续抓拍';
+                        dom.scannerHint='识别成功，等待下一张';
                     }else{
-                        dom.scannerHint.textContent='重复条码，跳过';
+                        dom.scannerHint='重复条码，自动跳过';
                     }
                     STATE.burstTimer=setTimeout(runBurstLoop,STATE.burstConfig.successDelay);
                 }else{
-                    dom.scannerHint.textContent='未识别，继续抓拍';
+                    dom.scannerHint='未识别，继续高清抓拍';
                     STATE.burstTimer=setTimeout(runBurstLoop,STATE.burstConfig.failDelay);
                 }
             }catch(e){
@@ -427,18 +456,17 @@
                 if(STATE.burstTimer) clearTimeout(STATE.burstTimer);
                 closeBurstCamera();
                 dom.btnBurstScan.classList.remove('scanning');
-                dom.scanFabLabel.textContent='🔥自动连拍｜📸单次拍照';
+                dom.scanFabLabel.textContent='🔥高清自动连拍｜📸单次拍照';
                 toast('连拍已关闭','info');
                 return;
             }
-            // 开启
             const openOk=await openBurstCamera();
             if(!openOk) return;
             STATE.isBurstScanning=true;
             dom.btnBurstScan.classList.add('scanning');
-            dom.scanFabLabel.textContent='🔥连拍运行中';
-            dom.scannerHint.textContent='对准二维码自动连续扫描';
-            toast('超清连拍已启动，自动无限抓拍','success');
+            dom.scanFabLabel.textContent='🔥高清连拍运行中';
+            dom.scannerHint.textContent='二维码放入方框自动扫描';
+            toast('超清高清连拍已启动','success');
             runBurstLoop();
         }
 
@@ -448,7 +476,6 @@
             dom.photoInput.click();
         }
 
-        // 单次拍照回调
         dom.photoInput.addEventListener('change',async e=>{
             const file=e.target.files[0];
             if(!file) return;
@@ -464,7 +491,6 @@
             dom.photoInput.value='';
         })
 
-        // 手动录入
         dom.btnManualSubmit.addEventListener('click',()=>{
             const val=dom.manualQRInput.value.trim();
             if(!val) return;
@@ -474,14 +500,12 @@
             playOk();
         })
 
-        // 取景框点击对焦
         dom.focusTapArea.addEventListener('click',()=>{
             if(!STATE.videoTrack) return;
             STATE.videoTrack.applyConstraints({advanced:[{focusMode:'auto'}]}).catch(()=>{});
             toast('手动对焦','info');
         })
 
-        // 关闭弹窗按钮
         dom.btnScannerClose.addEventListener('click',toggleBurstScan);
 
         // 导出Excel
@@ -496,11 +520,10 @@
             const ws=XLSX.utils.aoa_to_sheet([headers,...rows]);
             ws['!cols']=[{wch:6},{wch:22},{wch:50},{wch:14},{wch:18},{wch:14},{wch:22}];
             XLSX.utils.book_append_sheet(wb,ws,'扫码记录');
-            XLSX.writeFile(wb,`扫码记录_${new Date().toISOString().slice(0,10)}.xlsx`);
+            XLSX.writeFile(wb,`扫码记录_${new Date().slice(0,10)}.xlsx`);
             toast('Excel导出完成','success');
         }
 
-        // 导出JSON
         function exportJSON(){
             if(!STATE.scanResults.length){ toast('暂无记录','error'); return; }
             const blob=new Blob([JSON.stringify({scanResults:STATE.scanResults,exportAt:new Date().toISOString()},null,2)],{type:'application/json'});
@@ -511,7 +534,6 @@
             toast('备份已下载','success');
         }
 
-        // 导入JSON
         function importJsonFile(file){
             const reader=new FileReader();
             reader.onload=e=>{
@@ -529,16 +551,15 @@
             reader.readAsText(file);
         }
 
-        // 绑定事件
         function bindEvent(){
             dom.btnBurstScan.addEventListener('click',toggleBurstScan);
             dom.btnPhotoScan.addEventListener('click',singleTakePhoto);
             dom.btnExportExcel.addEventListener('click',exportExcel);
             dom.btnExportJSON.addEventListener('click',exportJSON);
             dom.btnImport.addEventListener('click',()=>dom.importFileInput.click());
-            dom.importFileInput.addEventListener('change',e=>{
+            dom.importFile.addEventListener('change',e=>{
                 if(e.target.files[0]) importJsonFile(e.target.files[0]);
-                dom.importFileInput.value='';
+                dom.importFile.value='';
             })
             dom.btnClearAll.addEventListener('click',()=>{
                 if(!STATE.scanResults.length) return;
@@ -550,7 +571,7 @@
                 if(!STATE.scanResults.length){ toast('暂无数据','error');return; }
                 navigator.clipboard.writeText(STATE.scanResults[0].content).then(()=>toast('复制成功','success')).catch(()=>toast('复制失败','error'));
             })
-            // 切后台暂停连拍
+            // 切后台暂停、切回续拍
             document.addEventListener('visibilitychange',()=>{
                 if(document.hidden&&STATE.isBurstScanning){
                     if(STATE.burstTimer) clearTimeout(STATE.burstTimer);
