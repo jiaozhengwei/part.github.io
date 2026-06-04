@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover, maximum-scale=1.0, minimum-scale=1.0">
-    <title>扫码记录工具 · 字段解析版</title>
+    <title>扫码记录工具 · 全字段解析</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <style>
@@ -14,57 +14,136 @@
             --safe-bottom: env(safe-area-inset-bottom, 16px);
         }
         * { margin:0; padding:0; box-sizing:border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding-bottom: calc(80px + var(--safe-bottom)); -webkit-tap-highlight-color: transparent; line-height: 1.5; user-select: none; -webkit-user-select: none; }
-        .app-header { background: var(--card); padding:14px 16px; position:sticky; top:0; z-index:100; box-shadow:var(--shadow); display:flex; align-items:center; justify-content:center; border-bottom:1px solid var(--border); }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            background: var(--bg); color: var(--text); min-height: 100vh;
+            padding-bottom: calc(80px + var(--safe-bottom));
+            -webkit-tap-highlight-color: transparent; line-height: 1.5; user-select: none; -webkit-user-select: none;
+        }
+        .app-header {
+            background: var(--card); padding:14px 16px; position:sticky; top:0; z-index:100;
+            box-shadow:var(--shadow); display:flex; align-items:center; justify-content:center;
+            border-bottom:1px solid var(--border);
+        }
         .logo-area { display:flex; align-items:center; gap:10px; }
-        .logo-icon { width:38px; height:38px; border-radius:10px; background: linear-gradient(135deg, #1a73e8, #4a9af5); display:flex; align-items:center; justify-content:center; font-size:20px; color:#fff; }
+        .logo-icon {
+            width:38px; height:38px; border-radius:10px; background: linear-gradient(135deg, #1a73e8, #4a9af5);
+            display:flex; align-items:center; justify-content:center; font-size:20px; color:#fff;
+        }
         .app-header h1 { font-size:18px; font-weight:700; }
         .main-content { padding:12px 14px; display:flex; flex-direction:column; gap:12px; max-width:600px; margin:0 auto; }
         .card { background:var(--card); border-radius:var(--radius); padding:16px; box-shadow:var(--shadow); }
         .card-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
         .card-title { font-size:15px; font-weight:600; display:flex; align-items:center; gap:7px; }
         .scan-fab-container { display:flex; justify-content:center; gap:14px; padding:8px 0; flex-wrap:wrap; }
-        .scan-fab { width:80px; height:80px; border-radius:50%; border:none; font-size:30px; cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; box-shadow:0 8px 28px rgba(26,115,232,0.4); transition:all 0.2s; gap:2px; }
+        .scan-fab {
+            width:80px; height:80px; border-radius:50%; border:none; font-size:30px; cursor:pointer;
+            display:flex; flex-direction:column; align-items:center; justify-content:center;
+            box-shadow:0 8px 28px rgba(26,115,232,0.4); transition:all 0.2s; gap:2px;
+        }
         .scan-fab .fab-icon { font-size:30px; line-height:1; }
         .scan-fab .fab-label { font-size:10px; font-weight:500; line-height:1; }
         .scan-fab.burst-scan { background:linear-gradient(135deg, #e6a817, #ff9800); color:#fff; }
         .scan-fab.photo-scan { background:linear-gradient(135deg, #0d904f, #2ecc71); color:#fff; }
         .scan-fab.video-scan { background:linear-gradient(135deg, #1a73e8, #4a9af5); color:#fff; }
-        .scan-fab.scanning { background:linear-gradient(135deg, #d93025, #f06050) !important; animation:pulse-scan 1.5s ease-in-out infinite; }
-        @keyframes pulse-scan { 0%,100%{ box-shadow:0 8px 28px rgba(217,48,37,0.4); } 50%{ box-shadow:0 8px 40px rgba(217,48,37,0.7),0 0 0 20px rgba(217,48,37,0.08); } }
+        .scan-fab.scanning {
+            background:linear-gradient(135deg, #d93025, #f06050) !important;
+            animation:pulse-scan 1.5s ease-in-out infinite;
+        }
+        @keyframes pulse-scan {
+            0%,100%{ box-shadow:0 8px 28px rgba(217,48,37,0.4); }
+            50%{ box-shadow:0 8px 40px rgba(217,48,37,0.7),0 0 0 20px rgba(217,48,37,0.08); }
+        }
         .scan-status { text-align:center; font-size:12px; color:#666; margin-top:8px; min-height:18px; }
-        .scanner-modal { position:fixed; inset:0; z-index:9999; background:#000; display:none; flex-direction:column; align-items:center; justify-content:center; }
+        .scanner-modal {
+            position:fixed; inset:0; z-index:9999; background:#000; display:none;
+            flex-direction:column; align-items:center; justify-content:center;
+        }
         .scanner-modal.active { display:flex; }
-        .scanner-close { position:absolute; top:16px; right:16px; z-index:10002; width:40px; height:40px; border-radius:50%; background:rgba(255,255,255,0.25); border:none; color:#fff; font-size:22px; cursor:pointer; }
+        .scanner-close {
+            position:absolute; top:16px; right:16px; z-index:10002; width:40px; height:40px;
+            border-radius:50%; background:rgba(255,255,255,0.25); border:none; color:#fff;
+            font-size:22px; cursor:pointer;
+        }
         #scanner-video { width:100%; height:100%; object-fit:cover; display:block; }
-        .scanner-hint { position:absolute; bottom:100px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.8); color:#ffcc00; font-size:14px; padding:10px 20px; border-radius:20px; z-index:10001; pointer-events:none; white-space:nowrap; font-weight:bold; }
-        .scanner-overlay-frame { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:280px; height:280px; border:3px solid rgba(255,255,255,0.9); border-radius:20px; z-index:10000; pointer-events:none; box-shadow:0 0 0 2000px rgba(0,0,0,0.6); }
-        .result-toast { position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:10003; padding:14px 24px; border-radius:25px; font-weight:600; font-size:13px; opacity:0; transition:all 0.35s; max-width:90vw; text-align:center; pointer-events:none; }
+        .scanner-hint {
+            position:absolute; bottom:100px; left:50%; transform:translateX(-50%);
+            background:rgba(0,0,0,0.8); color:#ffcc00; font-size:14px; padding:10px 20px;
+            border-radius:20px; z-index:10001; pointer-events:none; white-space:nowrap; font-weight:bold;
+        }
+        .scanner-overlay-frame {
+            position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+            width:280px; height:280px; border:3px solid rgba(255,255,255,0.9);
+            border-radius:20px; z-index:10000; pointer-events:none;
+            box-shadow:0 0 0 2000px rgba(0,0,0,0.6);
+        }
+        .result-toast {
+            position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:10003;
+            padding:14px 24px; border-radius:25px; font-weight:600; font-size:13px;
+            opacity:0; transition:all 0.35s; max-width:90vw; text-align:center; pointer-events:none;
+        }
         .result-toast.show { opacity:1; top:28px; }
-        .result-toast.success { background:#0d904f; color:#fff; } .result-toast.error { background:#d93025; color:#fff; } .result-toast.info { background:#1a73e8; color:#fff; }
-        .stat-badge { display:inline-flex; align-items:center; gap:4px; background:#e8f0fe; color:var(--primary); padding:6px 14px; border-radius:20px; font-size:13px; font-weight:600; }
+        .result-toast.success { background:#0d904f; color:#fff; }
+        .result-toast.error { background:#d93025; color:#fff; }
+        .result-toast.info { background:#1a73e8; color:#fff; }
+        .stat-badge {
+            display:inline-flex; align-items:center; gap:4px; background:#e8f0fe;
+            color:var(--primary); padding:6px 14px; border-radius:20px; font-size:13px; font-weight:600;
+        }
         .result-list { list-style:none; max-height:450px; overflow-y:auto; -webkit-overflow-scrolling:touch; }
         .result-list li { padding:10px 12px; border-bottom:1px solid #f0f0f0; transition:background 0.2s; }
         .result-list li:last-child { border-bottom:none; }
         .result-list li.new-item { background:#e6f4ea; animation:highlight 1.5s ease-out; }
         @keyframes highlight { 0%{ background:#b7e4c7; } 100%{ background:transparent; } }
         .result-main { display:flex; align-items:flex-start; gap:10px; }
-        .result-index { width:28px; height:28px; border-radius:50%; background:#e8f0fe; color:var(--primary); display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; flex-shrink:0; }
+        .result-index {
+            width:28px; height:28px; border-radius:50%; background:#e8f0fe; color:var(--primary);
+            display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700;
+            flex-shrink:0;
+        }
         .result-body { flex:1; min-width:0; }
-        .result-raw { font-size:12px; color:#888; word-break:break-all; font-family:monospace; margin-bottom:4px; }
+        .result-raw {
+            font-size:12px; color:#888; word-break:break-all; font-family:monospace;
+            margin-bottom:4px;
+        }
         .result-fields { display:flex; flex-wrap:wrap; gap:4px 8px; margin-top:4px; }
-        .field-badge { display:inline-block; background:#f0f4ff; color:#1a73e8; font-size:11px; padding:2px 8px; border-radius:12px; white-space:nowrap; font-weight:500; }
+        .field-badge {
+            display:inline-block; background:#f0f4ff; color:#1a73e8; font-size:11px;
+            padding:2px 8px; border-radius:12px; white-space:nowrap; font-weight:500;
+        }
         .field-badge .field-label { color:#666; font-weight:400; }
         .result-time { font-size:10px; color:#bbb; flex-shrink:0; margin-left:auto; }
         .result-actions { display:flex; gap:4px; flex-shrink:0; margin-left:8px; }
-        .result-actions button { width:28px; height:28px; border-radius:50%; border:1px solid #ddd; background:#fff; cursor:pointer; font-size:13px; display:flex; align-items:center; justify-content:center; transition:all 0.2s; }
+        .result-actions button {
+            width:28px; height:28px; border-radius:50%; border:1px solid #ddd; background:#fff;
+            cursor:pointer; font-size:13px; display:flex; align-items:center; justify-content:center;
+            transition:all 0.2s;
+        }
         .result-actions button:active { background:#eee; transform:scale(0.9); }
         .empty-state { text-align:center; padding:40px 20px; color:#999; }
-        .btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; border:none; border-radius:25px; padding:13px 22px; font-size:15px; font-weight:600; cursor:pointer; transition:0.2s; min-height:46px; background:var(--primary); color:#fff; box-shadow:0 4px 14px rgba(26,115,232,0.3); }
-        .btn:active { transform:scale(0.95); } .btn-outline { background:#fff; color:var(--primary); border:1.5px solid var(--primary); box-shadow:none; } .btn-sm { padding:8px 14px; font-size:13px; min-height:34px; border-radius:20px; }
-        .manual-input-row { display:flex; gap:8px; margin-top:8px; } .manual-input-row input { flex:1; border:1px solid #ccc; border-radius:20px; padding:10px 14px; font-size:13px; outline:none; }
+        .btn {
+            display:inline-flex; align-items:center; justify-content:center; gap:6px;
+            border:none; border-radius:25px; padding:13px 22px; font-size:15px; font-weight:600;
+            cursor:pointer; transition:0.2s; min-height:46px; background:var(--primary); color:#fff;
+            box-shadow:0 4px 14px rgba(26,115,232,0.3);
+        }
+        .btn:active { transform:scale(0.95); }
+        .btn-outline {
+            background:#fff; color:var(--primary); border:1.5px solid var(--primary); box-shadow:none;
+        }
+        .btn-sm { padding:8px 14px; font-size:13px; min-height:34px; border-radius:20px; }
+        .manual-input-row { display:flex; gap:8px; margin-top:8px; }
+        .manual-input-row input {
+            flex:1; border:1px solid #ccc; border-radius:20px; padding:10px 14px;
+            font-size:13px; outline:none;
+        }
         .tip-text { font-size:11px; color:#999; margin-top:6px; text-align:center; }
-        .bottom-bar { position:fixed; bottom:0; left:0; right:0; background:var(--card); border-top:1px solid var(--border); padding:10px 14px calc(10px + var(--safe-bottom)); display:flex; gap:8px; z-index:90; box-shadow:0 -2px 10px rgba(0,0,0,0.05); } .bottom-bar .btn { flex:1; }
+        .bottom-bar {
+            position:fixed; bottom:0; left:0; right:0; background:var(--card);
+            border-top:1px solid var(--border); padding:10px 14px calc(10px + var(--safe-bottom));
+            display:flex; gap:8px; z-index:90; box-shadow:0 -2px 10px rgba(0,0,0,0.05);
+        }
+        .bottom-bar .btn { flex:1; }
     </style>
 </head>
 <body>
@@ -123,9 +202,13 @@
         function playErr(){ beep(280,0.25,'square'); }
 
         const STATE = {
-            scanResults: [], // [{id, time, content, parsed: {dealerCode, dealerClaimNo, damageCode, partNumber}}]
-            isScanning: false, isBurstScanning: false, burstTimer: null,
-            mediaStream:null, videoTrack:null, scanInterval:null
+            scanResults: [],
+            isScanning: false,
+            isBurstScanning: false,
+            burstTimer: null,
+            mediaStream:null,
+            videoTrack:null,
+            scanInterval:null
         };
 
         const $=id=>document.getElementById(id);
@@ -147,32 +230,30 @@
             toastTimer=setTimeout(()=>el.classList.remove('show'),2000);
         }
 
-        const STORAGE_KEY = 'scan_records_parsed_v1';
+        const STORAGE_KEY = 'scan_records_all_parsed';
         function saveLocal(){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({scanResults:STATE.scanResults.slice(-500)})); }catch(e){} }
         function loadLocal(){
             try{ const d=JSON.parse(localStorage.getItem(STORAGE_KEY)); if(!d||!d.scanResults) return false; STATE.scanResults=d.scanResults; return true; }catch(e){return false;}
         }
 
-        // 解析函数：按照规则拆分字段
+        // 🌟 优化后的解析函数：移除严格校验，仅按长度分割字段
         function parseContent(raw){
-            const clean = raw.replace(/\s/g, '');
-            if(clean.length < 20) return null;
-            const dealerCode = clean.substring(0,5);            // 84108
-            const dealerClaimNo = clean.substring(5,12);        // 3019465
-            const damageCode = clean.substring(12,19);          // 5390001
-            const partNumber = clean.substring(19);             // N000000005970
-            // 简单校验：dealerClaimNo以3开头，damageCode是7位数字，partNumber以字母开头
-            if(!/^\d{5}$/.test(dealerCode)) return null;
-            if(!/^3\d{6}$/.test(dealerClaimNo)) return null;
-            if(!/^\d{7}$/.test(damageCode)) return null;
-            if(!/^[A-Za-z]/.test(partNumber)) return null;
+            const clean = raw.replace(/\s/g, '');   // 去除所有空格
+            if(clean.length < 20) return null;     // 总长度不足20位时无法分割，返回null
+            const dealerCode = clean.substring(0,5);
+            const dealerClaimNo = clean.substring(5,12);
+            const damageCode = clean.substring(12,19);
+            const partNumber = clean.substring(19);
+            // 无论内容是什么，都返回分割后的四个字段
             return { dealerCode, dealerClaimNo, damageCode, partNumber };
         }
 
         function addScanResult(content){
+            // 去重：2秒内相同内容不重复添加
             const last = STATE.scanResults[0];
             if(last && last.content===content && Date.now()-new Date(last.time).getTime()<2000) return false;
-            const parsed = parseContent(content);
+
+            const parsed = parseContent(content);   // 现在绝大多数情况都会返回对象
             STATE.scanResults.unshift({
                 id: Date.now(),
                 time: new Date().toISOString(),
@@ -197,6 +278,7 @@
             dom.resultList.innerHTML = STATE.scanResults.map((r,idx)=> {
                 const raw = escapeHtml(r.content);
                 let fieldsHtml = '';
+                // 只要parsed存在就显示字段徽章（即使个别字段为空字符串）
                 if(r.parsed){
                     const p = r.parsed;
                     fieldsHtml = `
@@ -206,6 +288,9 @@
                         <span class="field-badge"><span class="field-label">Damage code:</span> ${escapeHtml(p.damageCode)}</span>
                         <span class="field-badge"><span class="field-label">Part number:</span> ${escapeHtml(p.partNumber)}</span>
                     </div>`;
+                } else {
+                    // 理论上不会进入这里，因为长度不足20时parseContent返回null，但已过滤
+                    fieldsHtml = '<div class="result-fields"><span class="field-badge" style="background:#fff3e0;color:#e65100;">⚠️ 格式不完整</span></div>';
                 }
                 return `<li data-id="${r.id}">
                     <div class="result-main">
@@ -239,7 +324,7 @@
         window._copyItem = (c)=> navigator.clipboard.writeText(c).then(()=>toast('已复制','success')).catch(()=>toast('复制失败','error'));
         window._removeItem = (id)=> { removeScanResult(id); toast('已删除','info'); };
 
-        // 解码
+        // 解码（与之前相同）
         function tryDecodeImageData(imageData){
             let code = jsQR(imageData.data, imageData.width, imageData.height);
             if(code) return code.data;
